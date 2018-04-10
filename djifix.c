@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2018-02-21
+    Version 2018-03-31
 
     Copyright (c) 2014-2018 Live Networks, Inc.  All rights reserved.
 
@@ -89,6 +89,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2018-01-27: Zenmuse apparently uses a different SPS/PPS for its (type 2) 1080p30 videos than
                   the Phantom did, so we added a new format for this.
     - 2018-02-21: We now support an additional video format - H.264 1080p/30 (type 3)
+    - 2018-03-31: We can now repair more kinds of 'type 4' file (apparently from the Mavic Air)
 */
 
 #include <stdio.h>
@@ -117,8 +118,10 @@ static int checkForVideo(unsigned first4Bytes, unsigned next4Bytes) {
 	  && (next4Bytes&0xFF000000) != 0
 	  && (next4Bytes&0x00FF0000) != 0
 	  && (next4Bytes&0x0000FF00) == 0)
-     || (first4Bytes > 25 && first4Bytes < 60
-	 && (next4Bytes&0xFF000000) == 0x27000000);
+    || ((next4Bytes&0xFF000000) == 0x27000000
+	&& first4Bytes > 25 && first4Bytes < 60)
+    || ((next4Bytes&0xFF000000) == 0x67000000
+	&& first4Bytes > 10 && first4Bytes < 40);
 }
 
 #define fourcc_ftyp (('f'<<24)|('t'<<16)|('y'<<8)|'p')

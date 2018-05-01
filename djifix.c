@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2018-03-31
+    Version 2018-04-22
 
     Copyright (c) 2014-2018 Live Networks, Inc.  All rights reserved.
 
@@ -90,6 +90,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   the Phantom did, so we added a new format for this.
     - 2018-02-21: We now support an additional video format - H.264 1080p/30 (type 3)
     - 2018-03-31: We can now repair more kinds of 'type 4' file (apparently from the Mavic Air)
+    - 2018-04=22: We now support an additional video format - H.264 1520p/60 (type 2)
 */
 
 #include <stdio.h>
@@ -139,7 +140,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2019-01-27";
+static char const* versionStr = "2018-04-22";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -537,6 +538,7 @@ static unsigned char SPS_2160x3840p24[] = { 0x27, 0x64, 0x00, 0x33, 0xac, 0x34, 
 static unsigned char SPS_1530p30[] = { 0x27, 0x64, 0x00, 0x29, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1b, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0x75, 0x30, 0x74, 0x30, 0x00, 0x15, 0x75, 0x20, 0x00, 0x05, 0x5d, 0x4a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0xae, 0xa4, 0x00, 0x00, 0xab, 0xa9, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0x00, 0x00, 0x00, 0xfe };
 static unsigned char SPS_1530p25[] = { 0x27, 0x64, 0x00, 0x32, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1b, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x00, 0x00, 0x61, 0xa8, 0x74, 0x30, 0x00, 0x15, 0x75, 0x20, 0x00, 0x05, 0x5d, 0x4a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0xae, 0xa4, 0x00, 0x00, 0xab, 0xa9, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0xfe };
 static unsigned char SPS_1530p24[] = { 0x27, 0x64, 0x00, 0x32, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1b, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0x5d, 0xc0, 0x74, 0x30, 0x00, 0x15, 0x75, 0x20, 0x00, 0x05, 0x5d, 0x4a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0xae, 0xa4, 0x00, 0x00, 0xab, 0xa9, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0xfe };
+static unsigned char SPS_1520p60[] = { 0x27, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x02, 0xa4, 0x0b, 0xfb, 0x01, 0x6e, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0xea, 0x60, 0x74, 0x30, 0x00, 0x15, 0x75, 0x20, 0x00, 0x05, 0x5d, 0x4a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0xae, 0xa4, 0x00, 0x00, 0xab, 0xa9, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0x00, 0x00, 0x00, 0xfe };
 static unsigned char SPS_1520p30[] = { 0x27, 0x64, 0x00, 0x29, 0xac, 0x34, 0xc8, 0x02, 0xa4, 0x0b, 0xfb, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0x75, 0x30, 0x74, 0x30, 0x00, 0x13, 0x12, 0xc0, 0x00, 0x04, 0xc4, 0xb4, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0x62, 0x58, 0x00, 0x00, 0x98, 0x96, 0x8b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0x00, 0x00, 0x00, 0xfe };
 static unsigned char SPS_1520p25[] = { 0x27, 0x64, 0x00, 0x29, 0xac, 0x34, 0xc8, 0x02, 0xa4, 0x0b, 0xfb, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x00, 0x03, 0x00, 0x80, 0x00, 0x00, 0x19, 0x74, 0x30, 0x00, 0x13, 0x12, 0xc0, 0x00, 0x04, 0xc4, 0xb4, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0x62, 0x58, 0x00, 0x00, 0x98, 0x96, 0x8b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0xfe };
 static unsigned char SPS_1520p24[] = { 0x27, 0x64, 0x00, 0x29, 0xac, 0x34, 0xc8, 0x02, 0xa4, 0x0b, 0xfb, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0x5d, 0xc0, 0x74, 0x30, 0x00, 0x15, 0x75, 0x20, 0x00, 0x05, 0x5d, 0x4a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x02, 0xae, 0xa4, 0x00, 0x00, 0xab, 0xa9, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x4e, 0x00, 0x00, 0x00, 0xfe };
@@ -580,35 +582,36 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
       fprintf(stderr, "\tIf the video format was 1530p, 30fps: Type 5, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was 1530p, 25fps: Type 6, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was 1530p, 24fps: Type 7, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1520p, 30fps: Type 8, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1520p, 25fps: Type 9, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1520p, 24fps: Type A, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 60fps: Type B, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080i, 60fps: Type C, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 50fps: Type D, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 48fps: Type E, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 30fps: Type F, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 30fps (Zenmuse): Type G, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 25fps: Type H, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 1080p, 24fps: Type I, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 60fps: Type J, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 50fps: Type K, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 48fps: Type L, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 30fps: Type M, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 25fps: Type N, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 720p, 24fps: Type O, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was 480p, 30fps: Type P, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1520p, 60fps: Type 8, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1520p, 30fps: Type 9, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1520p, 25fps: Type A, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1520p, 24fps: Type B, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 60fps: Type C, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080i, 60fps: Type D, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 50fps: Type E, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 48fps: Type F, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 30fps: Type G, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 30fps (Zenmuse): Type H, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 25fps: Type I, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 1080p, 24fps: Type J, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 60fps: Type K, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 50fps: Type L, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 48fps: Type M, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 30fps: Type N, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 25fps: Type O, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 720p, 24fps: Type P, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was 480p, 30fps: Type Q, then the \"Return\" key.\n");
       fprintf(stderr, "(If you are unsure which video format was used, then guess as follows:\n");
       fprintf(stderr, "\tIf your file was from a Mavic Pro: Type 7, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf your file was from a Phantom 2 Vision+: Type F, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf your file was from a Phantom 2 Vision+: Type G, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf your file was from an Inspire: Type 3, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please email \"djifix@live555.com\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 'p') ||
-	  (formatCode >= 'A' && formatCode <= 'P')) {
+	  (formatCode >= 'a' && formatCode <= 'q') ||
+	  (formatCode >= 'A' && formatCode <= 'Q')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -624,24 +627,25 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
       case '5': { sps = SPS_1530p30; pps = PPS_Inspire; break; }
       case '6': { sps = SPS_1530p25; pps = PPS_Inspire; break; }
       case '7': { sps = SPS_1530p24; pps = PPS_Inspire; break; }
-      case '8': { sps = SPS_1520p30; pps = PPS_Inspire; break; }
-      case '9': { sps = SPS_1520p25; pps = PPS_Inspire; break; }
-      case 'a': case 'A': { sps = SPS_1520p24; pps = PPS_Inspire; break; }
-      case 'b': case 'B': { sps = SPS_1080p60; pps = PPS_Inspire; break; }
-      case 'c': case 'C': { sps = SPS_1080i60; pps = PPS_P2VP; break; }
-      case 'd': case 'D': { sps = SPS_1080p50; pps = PPS_Inspire; break; }
-      case 'e': case 'E': { sps = SPS_1080p48; pps = PPS_Inspire; break; }
-      case 'f': case 'F': { sps = SPS_1080p30_default; pps = PPS_P2VP; break; }
-      case 'g': case 'G': { sps = SPS_1080p30_advanced; pps = PPS_Inspire; break; }
-      case 'h': case 'H': { sps = SPS_1080p25; pps = PPS_P2VP; break; }
-      case 'i': case 'I': { sps = SPS_1080p24; pps = PPS_Inspire; break; }
-      case 'j': case 'J': { sps = SPS_720p60; pps = PPS_P2VP; break; }
-      case 'k': case 'K': { sps = SPS_720p50; pps = PPS_Inspire; break; }
-      case 'l': case 'L': { sps = SPS_720p48; pps = PPS_Inspire; break; }
-      case 'm': case 'M': { sps = SPS_720p30; pps = PPS_P2VP; break; }
-      case 'n': case 'N': { sps = SPS_720p25; pps = PPS_Inspire; break; }
-      case 'o': case 'O': { sps = SPS_720p24; pps = PPS_Inspire; break; }
-      case 'p': case 'P': { sps = SPS_480p30; pps = PPS_P2VP; break; }
+      case '8': { sps = SPS_1520p60; pps = PPS_Inspire; break; }
+      case '9': { sps = SPS_1520p30; pps = PPS_Inspire; break; }
+      case 'a': case 'A': { sps = SPS_1520p25; pps = PPS_Inspire; break; }
+      case 'b': case 'B': { sps = SPS_1520p24; pps = PPS_Inspire; break; }
+      case 'c': case 'C': { sps = SPS_1080p60; pps = PPS_Inspire; break; }
+      case 'd': case 'D': { sps = SPS_1080i60; pps = PPS_P2VP; break; }
+      case 'e': case 'E': { sps = SPS_1080p50; pps = PPS_Inspire; break; }
+      case 'f': case 'F': { sps = SPS_1080p48; pps = PPS_Inspire; break; }
+      case 'g': case 'G': { sps = SPS_1080p30_default; pps = PPS_P2VP; break; }
+      case 'h': case 'H': { sps = SPS_1080p30_advanced; pps = PPS_Inspire; break; }
+      case 'i': case 'I': { sps = SPS_1080p25; pps = PPS_P2VP; break; }
+      case 'j': case 'J': { sps = SPS_1080p24; pps = PPS_Inspire; break; }
+      case 'k': case 'K': { sps = SPS_720p60; pps = PPS_P2VP; break; }
+      case 'l': case 'L': { sps = SPS_720p50; pps = PPS_Inspire; break; }
+      case 'm': case 'M': { sps = SPS_720p48; pps = PPS_Inspire; break; }
+      case 'n': case 'N': { sps = SPS_720p30; pps = PPS_P2VP; break; }
+      case 'o': case 'O': { sps = SPS_720p25; pps = PPS_Inspire; break; }
+      case 'p': case 'P': { sps = SPS_720p24; pps = PPS_Inspire; break; }
+      case 'q': case 'Q': { sps = SPS_480p30; pps = PPS_P2VP; break; }
       default: { sps = SPS_1080p30_default; pps = PPS_P2VP; break; } /* shouldn't happen */
     };
 
@@ -830,7 +834,10 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
 	if (fseek(inputFID, 0x200-4, SEEK_CUR) != 0) break;
 	continue;
       } else if (nalSize == 0 || nalSize > 0x00FFFFFF) {
-	fprintf(stderr, "\n(Anomalous NAL unit size 0x%08x @ file position 0x%lx)\n", nalSize, ftell(inputFID)-4);
+	unsigned long filePosition = ftell(inputFID)-4;
+
+      fprintf(stderr, "\n(Anomalous NAL unit size 0x%08x @ file position 0x%lx)\n", nalSize, filePosition);
+      fprintf(stderr, "(We can't repair any more than %lu MBytes of this file - sorry...)\n", filePosition/1000000);
 	/* We can't recover from this, so stop here: */
 	break;
       }

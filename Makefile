@@ -3,7 +3,7 @@
 
 prefix=/usr/local
 url="http://djifix.live555.com/djifix.c"
-version := $(shell cat djifix.c | perl -ne 'print $$2 if /(Version) (\d{4}-\d{2}-\d{2})/')
+version=$(shell cat djifix.c | perl -ne 'print $$2 if /(Version) (\d{4}-\d{2}-\d{2})/')
 
 all: build
 

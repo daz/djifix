@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2018-05-03
+    Version 2018-07-11
 
     Copyright (c) 2014-2018 Live Networks, Inc.  All rights reserved.
 
@@ -92,6 +92,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2018-03-31: We can now repair more kinds of 'type 4' file (apparently from the Mavic Air)
     - 2018-04=22: We now support an additional video format - H.264 1520p/60 (type 2)
     - 2018-05-03: We now support an additional video format - H.264 2160(x4096)p25 (type 3)
+    - 2018-07-11: We now support an additional video format - H.264 1080p60 (type 3)
 */
 
 #include <stdio.h>
@@ -141,7 +142,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2018-05-03";
+static char const* versionStr = "2018-07-11";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -720,6 +721,7 @@ static unsigned char type3_H264_SPS_1530p30[] = { 0x27, 0x64, 0x00, 0x32, 0xac, 
 static unsigned char type3_H264_SPS_1530p24[] = { 0x27, 0x64, 0x00, 0x32, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1b, 0x01, 0xaa, 0x02, 0x02, 0x02, 0xa0, 0x00, 0x01, 0xf4, 0xa0, 0x00, 0x5d, 0xc0, 0xa4, 0x30, 0x00, 0x09, 0xa9, 0x68, 0x00, 0x00, 0xab, 0xa9, 0x55, 0xde, 0xac, 0x68, 0x60, 0x00, 0xa3, 0x12, 0xd0, 0x00, 0xa1, 0x57, 0x52, 0xab, 0xac, 0xb8, 0x7c, 0x22, 0xa1, 0x45, 0x80, 0xfe };
 static unsigned char type3_H265_SPS_1080p120[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xac, 0x09, 0xfe };
 static unsigned char type3_H264_SPS_1080p120[] = { 0x27, 0x64, 0x00, 0x33, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x07, 0x53, 0x01, 0xd0, 0xc0, 0x00, 0x2f, 0xaf, 0x00, 0x00, 0x03, 0x03, 0x5a, 0x4e, 0x97, 0x79, 0x71, 0xa1, 0x80, 0x00, 0x5f, 0x5e, 0x00, 0x00, 0x06, 0xb4, 0x9d, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
+static unsigned char type3_H264_SPS_1080p60[] = { 0x27, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x03, 0xa9, 0x81, 0xd0, 0xc0, 0x00, 0x26, 0x25, 0xa0, 0x00, 0x02, 0xae, 0xa5, 0x57, 0x79, 0x71, 0xa1, 0x80, 0x00, 0x4c, 0x4b, 0x40, 0x00, 0x05, 0x5d, 0x4a, 0xae, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
 static unsigned char type3_H264_SPS_1080p30[] = { 0x27, 0x64, 0x00, 0x28, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x01, 0xd4, 0xc1, 0xd0, 0xc0, 0x00, 0x72, 0x70, 0x80, 0x00, 0x08, 0x0b, 0xef, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x03, 0x93, 0x84, 0x00, 0x00, 0x40, 0x5f, 0x7a, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
 static unsigned char type3_H265_SPS_1080p25[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x7b, 0xac, 0x09, 0xfe };
 static unsigned char type3_H264_SPS_1080p25[] = { 0x27, 0x64, 0x00, 0x28, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd0, 0x00, 0x01, 0x86, 0xa1, 0xd0, 0xc0, 0x00, 0x4c, 0x4b, 0x00, 0x00, 0x15, 0x75, 0x29, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x09, 0x89, 0x60, 0x00, 0x02, 0xae, 0xa5, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
@@ -768,18 +770,19 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps: Type b, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.265, 1080p, 120fps: Type c, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 120fps: Type d, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type e, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type f, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type g, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type h, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type i, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps: Type e, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type f, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type g, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type h, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type i, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type j, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please email \"djifix@live555.com\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 'i') ||
-	  (formatCode >= 'A' && formatCode <= 'I')) {
+	  (formatCode >= 'a' && formatCode <= 'j') ||
+	  (formatCode >= 'A' && formatCode <= 'J')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -801,11 +804,12 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       case 'b': case 'B': { sps = type3_H264_SPS_1530p24; pps = type3_H264_PPS_default; break; }
       case 'c': case 'C': { sps = type3_H265_SPS_1080p120; pps = type3_H265_PPS_1080p120; vps = type3_H265_VPS_1080p; break; }
       case 'd': case 'D': { sps = type3_H264_SPS_1080p120; pps = type3_H264_PPS_default; break; }
-      case 'e': case 'E': { sps = type3_H264_SPS_1080p30; pps = type3_H264_PPS_default; break; }
-      case 'f': case 'F': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
-      case 'g': case 'G': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
-      case 'h': case 'H': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
-      case 'i': case 'I': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
+      case 'e': case 'E': { sps = type3_H264_SPS_1080p60; pps = type3_H264_PPS_default; break; }
+      case 'f': case 'F': { sps = type3_H264_SPS_1080p30; pps = type3_H264_PPS_default; break; }
+      case 'g': case 'G': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
+      case 'h': case 'H': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
+      case 'i': case 'I': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
+      case 'j': case 'J': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
       default: { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; } /* shouldn't happen */
     };
 

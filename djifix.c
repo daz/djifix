@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2018-07-11
+    Version 2018-08-01
 
     Copyright (c) 2014-2018 Live Networks, Inc.  All rights reserved.
 
@@ -93,6 +93,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2018-04=22: We now support an additional video format - H.264 1520p/60 (type 2)
     - 2018-05-03: We now support an additional video format - H.264 2160(x4096)p25 (type 3)
     - 2018-07-11: We now support an additional video format - H.264 1080p60 (type 3)
+    - 2018-08-01: If the size of the initial 'ftyp' atom is bad, just ignore it, rather than failing
 */
 
 #include <stdio.h>
@@ -142,7 +143,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2018-07-11";
+static char const* versionStr = "2018-08-01";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -190,7 +191,9 @@ int main(int argc, char** argv) {
       while (1) {
 	if (next4Bytes == fourcc_ftyp) {
 	  /* Repair type 1 */
-	  if (first4Bytes < 8 || fseek(inputFID, first4Bytes-8, SEEK_CUR) != 0) {
+	  if (first4Bytes < 8 || first4Bytes > 0x000000FF) {
+	    fprintf(stderr, "Ignoring bad length 0x%08x for initial 'ftyp' atom\n", first4Bytes);
+	  } else if (fseek(inputFID, first4Bytes-8, SEEK_CUR) != 0) {
 	    fprintf(stderr, "Bad length for initial 'ftyp' atom.%s\n", cantRepair);
 	    fileStartIsOK = 0;
 	  } else {

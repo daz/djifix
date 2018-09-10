@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2018-08-17
+    Version 2018-09-03
 
     Copyright (c) 2014-2018 Live Networks, Inc.  All rights reserved.
 
@@ -95,6 +95,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2018-07-11: We now support an additional video format - H.264 1080p60 (type 3)
     - 2018-08-01: If the size of the initial 'ftyp' atom is bad, just ignore it, rather than failing
     - 2018-08-17: We now support an additional video format - H.264 2160(x3840)p25 (type 3)
+    - 2018-09-03: We can now repair at least some 'type 4' H.265 (HEVC) video files
 */
 
 #include <stdio.h>
@@ -125,6 +126,8 @@ static int checkForVideo(unsigned first4Bytes, unsigned next4Bytes) {
 	  && (next4Bytes&0x0000FF00) == 0)
     || ((next4Bytes&0xFF000000) == 0x27000000
 	&& first4Bytes > 25 && first4Bytes < 60)
+    || ((next4Bytes&0xFF000000) == 0x40000000
+	&& first4Bytes > 30 && first4Bytes < 60)
     || ((next4Bytes&0xFF000000) == 0x67000000
 	&& first4Bytes > 10 && first4Bytes < 40);
 }
@@ -144,7 +147,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2018-08-17";
+static char const* versionStr = "2018-09-03";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -343,7 +346,7 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "Found 0x00000002 (at file position 0x%lx)\n", ftell(inputFID) - 8);
 		repairType2Second4Bytes = next4Bytes;
 	      } else {
-		fprintf(stderr, "Found apparent H.264 SPS (length %d, at file position 0x%lx)\n", first4Bytes, ftell(inputFID) - 8);
+		fprintf(stderr, "Found apparent H.264 or H.265 SPS (length %d, at file position 0x%lx)\n", first4Bytes, ftell(inputFID) - 8);
 		fseek(inputFID, -8, SEEK_CUR);
 		repairType = 4; /* special case */
 	      }
@@ -403,7 +406,7 @@ int main(int argc, char** argv) {
     }
 
     if (repairType > 1) {
-      fprintf(stderr, "We can repair this file, but the result will be a '.h264' file (playable by the VLC media player), not a '.mp4' file.\n");
+      fprintf(stderr, "We can repair this file, but the result will be a '.h264' file (playable by the VLC or IINA media player), not a '.mp4' file.\n");
     }
 
     /* Now generate the output file name, and open the output file: */
@@ -446,7 +449,7 @@ int main(int argc, char** argv) {
     free(outputFileName);
 
     if (repairType > 1) {
-      fprintf(stderr, "This file can be played by the VLC media player (available at <http://www.videolan.org/vlc/>)\n");
+      fprintf(stderr, "This file can be played by the VLC media player (available at <http://www.videolan.org/vlc/>), or by the IINA media player (for MacOS; available at <https://lhc70000.github.io/iina/>).\n");
     }
 
     /* OK */
@@ -611,7 +614,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
       fprintf(stderr, "\tIf your file was from a Mavic Pro: Type 7, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf your file was from a Phantom 2 Vision+: Type G, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf your file was from an Inspire: Type 3, then the \"Return\" key.\n");
-      fprintf(stderr, " If the resulting file is unplayable by VLC, then you may have guessed the wrong format;\n");
+      fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please email \"djifix@live555.com\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
@@ -782,7 +785,7 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type i, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type j, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type k, then the \"Return\" key.\n");
-      fprintf(stderr, " If the resulting file is unplayable by VLC, then you may have guessed the wrong format;\n");
+      fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please email \"djifix@live555.com\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');

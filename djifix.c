@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2019-01-14
+    Version 2019-02-25
 
     Copyright (c) 2014-2019 Live Networks, Inc.  All rights reserved.
 
@@ -97,6 +97,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2018-08-17: We now support an additional video format - H.264 2160(x3840)p25 (type 3)
     - 2018-09-03: We can now repair at least some 'type 4' H.265 (HEVC) video files
     - 2019-01-14: We now support an additional video format - H.264 1530p/48 (type 3)
+    - 2019-02-25: We now support an additional video format - H.264 2160(x4096)p50 (type 3)
 */
 
 #include <stdio.h>
@@ -148,7 +149,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2019-01-14";
+static char const* versionStr = "2019-02-25";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -717,6 +718,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 
 static unsigned char type3_H264_SPS_2160x4096p60[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x01, 0x00, 0x01, 0x0f, 0xb0, 0x16, 0xa0, 0x20, 0x20, 0x28, 0x00, 0x00, 0x1f, 0x48, 0x00, 0x0e, 0xa6, 0x07, 0x43, 0x00, 0x00, 0xbe, 0xbc, 0x00, 0x00, 0x0d, 0x69, 0x3a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x1a, 0xd2, 0x74, 0xbb, 0xcb, 0x87, 0xc2, 0x21, 0x14, 0x58, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p60[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x20, 0x00, 0x3a, 0x98, 0x1d, 0x0c, 0x00, 0x07, 0x27, 0x08, 0x00, 0x00, 0x80, 0xbe, 0xf5, 0xde, 0x5c, 0x68, 0x60, 0x00, 0x39, 0x38, 0x40, 0x00, 0x04, 0x05, 0xf7, 0xae, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
+static unsigned char type3_H264_SPS_2160x4096p50[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x01, 0x00, 0x01, 0x0f, 0xb0, 0x16, 0xa0, 0x20, 0x20, 0x28, 0x00, 0x00, 0x1f, 0x40, 0x00, 0x0c, 0x35, 0x07, 0x43, 0x00, 0x00, 0xbe, 0xbc, 0x00, 0x00, 0x0d, 0x69, 0x3a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x1a, 0xd2, 0x74, 0xbb, 0xcb, 0x87, 0xc2, 0x21, 0x14, 0x58, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p50[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x00, 0x00, 0x30, 0xd4, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x35, 0xa4, 0xe9, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x05, 0xf5, 0xe0, 0x00, 0x00, 0x6b, 0x49, 0xd2, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
 static unsigned char type3_H264_SPS_2160x4096p48[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x01, 0x00, 0x01, 0x0f, 0xb0, 0x16, 0xa0, 0x20, 0x20, 0x28, 0x00, 0x00, 0x1f, 0x48, 0x00, 0x0b, 0xb8, 0x07, 0x43, 0x00, 0x00, 0xbe, 0xbc, 0x00, 0x00, 0x0d, 0x69, 0x3a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x1a, 0xd2, 0x74, 0xbb, 0xcb, 0x87, 0xc2, 0x21, 0x14, 0x58, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p48[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x20, 0x00, 0x2e, 0xe0, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x35, 0xa4, 0xe9, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x05, 0xf5, 0xe0, 0x00, 0x00, 0x6b, 0x49, 0xd2, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
@@ -768,33 +770,34 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "First, however, we need to know which video format was used.  Enter this now.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 60fps: Type 0, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 60fps: Type 1, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 50fps: Type 2, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 48fps: Type 3, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 48fps: Type 4, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2160(x4096)p(4K), 30fps: Type 5, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 30fps: Type 6, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type 7, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 25fps: Type 8, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 25fps: Type 9, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type a, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 48fps: Type b, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 30fps: Type c, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps: Type d, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 120fps: Type e, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 120fps: Type f, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps: Type g, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type h, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type i, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type j, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type k, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type l, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 50fps: Type 2, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 50fps: Type 3, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 48fps: Type 4, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 48fps: Type 5, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x4096)p(4K), 30fps: Type 6, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 30fps: Type 7, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type 8, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x4096)p(4K), 25fps: Type 9, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 25fps: Type a, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type b, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 48fps: Type c, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 30fps: Type d, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps: Type e, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 120fps: Type f, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 120fps: Type g, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps: Type h, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type i, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type j, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type k, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type l, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type m, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please email \"djifix@live555.com\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 'l') ||
-	  (formatCode >= 'A' && formatCode <= 'L')) {
+	  (formatCode >= 'a' && formatCode <= 'm') ||
+	  (formatCode >= 'A' && formatCode <= 'M')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -804,26 +807,27 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
     switch (formatCode) {
       case '0': { sps = type3_H264_SPS_2160x4096p60; pps = type3_H264_PPS_default; break; }
       case '1': { sps = type3_H264_SPS_2160x3840p60; pps = type3_H264_PPS_default; break; }
-      case '2': { sps = type3_H264_SPS_2160x3840p50; pps = type3_H264_PPS_default; break; }
-      case '3': { sps = type3_H264_SPS_2160x4096p48; pps = type3_H264_PPS_default; break; }
-      case '4': { sps = type3_H264_SPS_2160x3840p48; pps = type3_H264_PPS_default; break; }
-      case '5': { sps = type3_H265_SPS_2160x4096p30; pps = type3_H265_PPS_2160x4096p30; vps = type3_H265_VPS_2160x4096p30; break; }
-      case '6': { sps = type3_H264_SPS_2160x4096p30; pps = type3_H264_PPS_default; break; }
-      case '7': { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; }
-      case '8': { sps = type3_H264_SPS_2160x4096p25; pps = type3_H264_PPS_default; break; }
-      case '9': { sps = type3_H265_SPS_2160x3840p25; pps = type3_H265_PPS_2160x3840p25; vps = type3_H265_VPS_2160x3840p25; break; }
-      case 'a': case 'A': { sps = type3_H264_SPS_2160x3840p25; pps = type3_H264_PPS_default; break; }
-      case 'b': case 'B': { sps = type3_H264_SPS_1530p48; pps = type3_H264_PPS_default; break; }
-      case 'c': case 'C': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_default; break; }
-      case 'd': case 'D': { sps = type3_H264_SPS_1530p24; pps = type3_H264_PPS_default; break; }
-      case 'e': case 'E': { sps = type3_H265_SPS_1080p120; pps = type3_H265_PPS_1080p120; vps = type3_H265_VPS_1080p; break; }
-      case 'f': case 'F': { sps = type3_H264_SPS_1080p120; pps = type3_H264_PPS_default; break; }
-      case 'g': case 'G': { sps = type3_H264_SPS_1080p60; pps = type3_H264_PPS_default; break; }
-      case 'h': case 'H': { sps = type3_H264_SPS_1080p30; pps = type3_H264_PPS_default; break; }
-      case 'i': case 'I': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
-      case 'j': case 'J': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
-      case 'k': case 'K': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
-      case 'l': case 'L': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
+      case '2': { sps = type3_H264_SPS_2160x4096p50; pps = type3_H264_PPS_default; break; }
+      case '3': { sps = type3_H264_SPS_2160x3840p50; pps = type3_H264_PPS_default; break; }
+      case '4': { sps = type3_H264_SPS_2160x4096p48; pps = type3_H264_PPS_default; break; }
+      case '5': { sps = type3_H264_SPS_2160x3840p48; pps = type3_H264_PPS_default; break; }
+      case '6': { sps = type3_H265_SPS_2160x4096p30; pps = type3_H265_PPS_2160x4096p30; vps = type3_H265_VPS_2160x4096p30; break; }
+      case '7': { sps = type3_H264_SPS_2160x4096p30; pps = type3_H264_PPS_default; break; }
+      case '8': { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; }
+      case '9': { sps = type3_H264_SPS_2160x4096p25; pps = type3_H264_PPS_default; break; }
+      case 'a': case 'A': { sps = type3_H265_SPS_2160x3840p25; pps = type3_H265_PPS_2160x3840p25; vps = type3_H265_VPS_2160x3840p25; break; }
+      case 'b': case 'B': { sps = type3_H264_SPS_2160x3840p25; pps = type3_H264_PPS_default; break; }
+      case 'c': case 'C': { sps = type3_H264_SPS_1530p48; pps = type3_H264_PPS_default; break; }
+      case 'd': case 'D': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_default; break; }
+      case 'e': case 'E': { sps = type3_H264_SPS_1530p24; pps = type3_H264_PPS_default; break; }
+      case 'f': case 'F': { sps = type3_H265_SPS_1080p120; pps = type3_H265_PPS_1080p120; vps = type3_H265_VPS_1080p; break; }
+      case 'g': case 'G': { sps = type3_H264_SPS_1080p120; pps = type3_H264_PPS_default; break; }
+      case 'h': case 'H': { sps = type3_H264_SPS_1080p60; pps = type3_H264_PPS_default; break; }
+      case 'i': case 'I': { sps = type3_H264_SPS_1080p30; pps = type3_H264_PPS_default; break; }
+      case 'j': case 'J': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
+      case 'k': case 'K': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
+      case 'l': case 'L': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
+      case 'm': case 'M': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
       default: { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; } /* shouldn't happen */
     };
 

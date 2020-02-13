@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2020-01-08
+    Version 2020-02-13
 
     Copyright (c) 2014-2020 Live Networks, Inc.  All rights reserved.
 
@@ -110,7 +110,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2019-12-29: We now support an additional video format - H.264 1530p/25 (type 3)(Mavic Mini)
                   We also allow for variable-sized 'metadata' blocks in Mavic Mini videos.
     - 2020-01-07: We now support an additional video format - H.265 1080p60 (type 3)
-    - 2019-01-08: Added support for the new SPS and PPS values used for 1080p60 by the Mavic Mini.
+    - 2020-01-08: Added support for the new SPS and PPS values used for 1080p60 by the Mavic Mini.
+    - 2020-02-13: We now support an additional video format - H.264 1080p/50 (type 3)(Mavic Mini)
 */
 
 #include <stdio.h>
@@ -162,7 +163,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2020-01-08";
+static char const* versionStr = "2020-02-13";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -756,6 +757,7 @@ static unsigned char type3_H264_SPS_1080p120[] = { 0x27, 0x64, 0x00, 0x33, 0xac,
 static unsigned char type3_H265_SPS_1080p60[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x7b, 0xac, 0x09, 0xfe };
 static unsigned char type3_H264_SPS_1080p60_MavicMini[] = { 0x67, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x03, 0xa9, 0x81, 0xd0, 0xc0, 0x00, 0x4c, 0x4b, 0x00, 0x00, 0x13, 0x12, 0xd1, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x09, 0x89, 0x60, 0x00, 0x02, 0x62, 0x5a, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
 static unsigned char type3_H264_SPS_1080p60_other[] = { 0x27, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x03, 0xa9, 0x81, 0xd0, 0xc0, 0x00, 0x26, 0x25, 0xa0, 0x00, 0x02, 0xae, 0xa5, 0x57, 0x79, 0x71, 0xa1, 0x80, 0x00, 0x4c, 0x4b, 0x40, 0x00, 0x05, 0x5d, 0x4a, 0xae, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
+static unsigned char type3_H264_SPS_1080p50_MavicMini[] = { 0x67, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd0, 0x00, 0x03, 0x0d, 0x41, 0xd0, 0xc0, 0x00, 0x4c, 0x4b, 0x00, 0x00, 0x13, 0x12, 0xd1, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x09, 0x89, 0x60, 0x00, 0x02, 0x62, 0x5a, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
 static unsigned char type3_H264_SPS_1080p30_MavicMini[] = { 0x67, 0x64, 0x00, 0x28, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x01, 0xd4, 0xc1, 0xd0, 0xc0, 0x00, 0x42, 0xc1, 0x80, 0x00, 0x10, 0xb0, 0x75, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x08, 0x58, 0x30, 0x00, 0x02, 0x16, 0x0e, 0xae, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
 static unsigned char type3_H264_SPS_1080p30_other[] = { 0x27, 0x64, 0x00, 0x28, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x01, 0xd4, 0xc1, 0xd0, 0xc0, 0x00, 0x72, 0x70, 0x80, 0x00, 0x08, 0x0b, 0xef, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x03, 0x93, 0x84, 0x00, 0x00, 0x40, 0x5f, 0x7a, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
 static unsigned char type3_H265_SPS_1080p25[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x7b, 0xac, 0x09, 0xfe };
@@ -816,20 +818,21 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.265, 1080p, 60fps: Type j, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (Mavic Mini): Type k, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (other DJI drones): Type l, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (Mavic Mini): Type m, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (other DJI drones): Type n, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type o, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type p, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type q, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type r, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type s, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 50fps: Type m, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (Mavic Mini): Type n, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (other DJI drones): Type o, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type p, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type q, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps: Type r, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type s, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type t, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 's') ||
-	  (formatCode >= 'A' && formatCode <= 'S')) {
+	  (formatCode >= 'a' && formatCode <= 't') ||
+	  (formatCode >= 'A' && formatCode <= 'T')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -861,13 +864,14 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       case 'j': case 'J': { sps = type3_H265_SPS_1080p60; pps = type3_H265_PPS_1080p60; vps = type3_H265_VPS_1080p; break; }
       case 'k': case 'K': { sps = type3_H264_SPS_1080p60_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
       case 'l': case 'L': { sps = type3_H264_SPS_1080p60_other; pps = type3_H264_PPS_default; break; }
-      case 'm': case 'M': { sps = type3_H264_SPS_1080p30_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'n': case 'N': { sps = type3_H264_SPS_1080p30_other; pps = type3_H264_PPS_default; break; }
-      case 'o': case 'O': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
-      case 'p': case 'P': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
-      case 'q': case 'Q': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
-      case 'r': case 'R': { sps = type3_H264_SPS_720p30; pps = type3_H264_PPS_default; break; }
-      case 's': case 'S': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
+      case 'm': case 'M': { sps = type3_H264_SPS_1080p50_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'n': case 'N': { sps = type3_H264_SPS_1080p30_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'o': case 'O': { sps = type3_H264_SPS_1080p30_other; pps = type3_H264_PPS_default; break; }
+      case 'p': case 'P': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
+      case 'q': case 'Q': { sps = type3_H264_SPS_1080p25; pps = type3_H264_PPS_default; break; }
+      case 'r': case 'R': { sps = type3_H264_SPS_1080p24; pps = type3_H264_PPS_default; break; }
+      case 's': case 'S': { sps = type3_H264_SPS_720p30; pps = type3_H264_PPS_default; break; }
+      case 't': case 'T': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
       default: { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; } /* shouldn't happen */
     };
 

@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2020-03-23a
+    Version 2020-03-25
 
     Copyright (c) 2014-2020 Live Networks, Inc.  All rights reserved.
 
@@ -114,6 +114,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2020-02-13: We now support an additional video format - H.264 1080p/50 (type 3)(Mavic Mini)
     - 2020-03-23: We now support an additional video format - H.264 1080p/25 (type 3)(Mavic Mini)
     - 2020-03-23a: We now support an additional video format - H.265 2160(x3840)p30 (type 3)
+    - 2020-03-25: We now detect (and print the first occurrence of) an additional type of
+                  metadata block.
 */
 
 #include <stdio.h>
@@ -165,7 +167,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2020-03-23a";
+static char const* versionStr = "2020-03-25";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -785,6 +787,8 @@ static unsigned char type3_H265_VPS_2160x3840[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0
 static unsigned char type3_H265_VPS_1080p[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0, 0x9c, 0x14, 0x0a, 0x62, 0x40, 0xfe };
 
 
+static unsigned printableMetadataCount = 0;
+
 static void doRepairType3(FILE* inputFID, FILE* outputFID) {
   /* Begin the repair by writing SPS, PPS, and (for H.265) VPS NAL units
      (each preceded by a 'start code'):
@@ -923,7 +927,6 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
 	if (fseek(inputFID, 0xF7, SEEK_CUR) != 0) break; // skip over initial binary garbage
 	if (fgetc(inputFID) == 0xFE) {
 	  // Assume that printable metadata continues (for a total metadata block size of 0x1FA)
-	  static unsigned printableMetadataCount = 0;
 	  if (++printableMetadataCount == 1) {
 	    // For the first occurrence of this metadata, print it out:
 	    unsigned long savePos = ftell(inputFID);
@@ -941,6 +944,25 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
 	  // Backup to the next "nalSize" position (for a total metadata block size of 0xFA)
 	  if (fseek(inputFID, -2, SEEK_CUR) != 0) break;
 	}
+	continue;
+      } else if (nalSize == 0x00fe462f) {
+	/* This 4-byte 'NAL size' is really the start of a 0x100 block from a 'metadata' track.
+	   Skip over it:
+	*/
+	if (++printableMetadataCount == 1) {
+	  // For the first occurrence of this metadata, print it out:
+	  unsigned long savePos = ftell(inputFID);
+	  unsigned char c;
+
+	  fprintf(stderr, "\nSaw initial metadata block:");
+	  fprintf(stderr, "%c", 0x46); fprintf(stderr, "%c", 0x2f); // start of printable data
+	  do {
+	    c = fgetc(inputFID);
+	    fprintf(stderr, "%c", c);
+	  } while (c != '\n');
+	  fseek(inputFID, savePos, SEEK_SET); /* restore our old position */
+	}
+	if (fseek(inputFID, 0x100-4, SEEK_CUR) != 0) break;
 	continue;
       } else if (nalSize == 0 || nalSize > 0x00FFFFFF) {
 	unsigned long filePosition = ftell(inputFID)-4;

@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2020-05-05
+    Version 2020-07-12
 
     Copyright (c) 2014-2020 Live Networks, Inc.  All rights reserved.
 
@@ -119,6 +119,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2020-04-14: The SPS for H.264 1530p/30 (type 3)(Mavic Mini) appears to have changed slightly.
     - 2020-05-05: We now support two additional video formats - H.264 1530p/24 (type 3)(Mavic Mini),
                   and H.264 1080p/24  (type 3)(Mavic Mini)
+     - 2020-07-12: We now support an additional video format - H.265 1530p50 (type 3)
 */
 
 #include <stdio.h>
@@ -170,7 +171,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2020-05-05";
+static char const* versionStr = "2020-07-12";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -224,11 +225,11 @@ int main(int argc, char** argv) {
 	    fprintf(stderr, "Bad length for initial 'ftyp' atom.%s\n", cantRepair);
 	    fileStartIsOK = 0;
 	  } else {
-	    if (!amAtStartOfFile) fprintf(stderr, "Found 'ftyp' (at file position 0x%lx)\n", ftell(inputFID) - 8); else fprintf(stderr, "Saw initial 'ftyp'.\n");
+	    if (!amAtStartOfFile) fprintf(stderr, "Found 'ftyp' (at file position 0x%08lx)\n", ftell(inputFID) - 8); else fprintf(stderr, "Saw initial 'ftyp'.\n");
 	  }
 	} else if (checkFor0x00000002(first4Bytes, next4Bytes)) {
 	  /* Assume repair type 2 */
-	  if (!amAtStartOfFile) fprintf(stderr, "Found 0x00000002 (at file position 0x%lx)\n", ftell(inputFID) - 8);
+	  if (!amAtStartOfFile) fprintf(stderr, "Found 0x00000002 (at file position 0x%08lx)\n", ftell(inputFID) - 8);
 	  repairType = 2;
 	  repairType2Second4Bytes = next4Bytes;
 	} else if (first4Bytes == 0x00000000 || first4Bytes == 0xFFFFFFFF) {
@@ -366,10 +367,10 @@ int main(int argc, char** argv) {
 	    if (checkForVideo(first4Bytes, next4Bytes)) {
 	      saw2 = 1;
 	      if (first4Bytes == 0x00000002) {
-		fprintf(stderr, "Found 0x00000002 (at file position 0x%lx)\n", ftell(inputFID) - 8);
+		fprintf(stderr, "Found 0x00000002 (at file position 0x%08lx)\n", ftell(inputFID) - 8);
 		repairType2Second4Bytes = next4Bytes;
 	      } else {
-		fprintf(stderr, "Found apparent H.264 or H.265 SPS (length %d, at file position 0x%lx)\n", first4Bytes, ftell(inputFID) - 8);
+		fprintf(stderr, "Found apparent H.264 or H.265 SPS (length %d, at file position 0x%08lx)\n", first4Bytes, ftell(inputFID) - 8);
 		fseek(inputFID, -8, SEEK_CUR);
 		repairType = 4; /* special case */
 	      }
@@ -404,7 +405,7 @@ int main(int argc, char** argv) {
 	    if (!get1Byte(inputFID, &byte3) || !get1Byte(inputFID, &byte4)) break;/*eof*/
 	    if (!(byte3 == 0xFF && byte4 == 0xD8)) {
 	      fseek(inputFID, -2, SEEK_CUR);
-	      fprintf(stderr, "Found movie data (at file position 0x%lx)\n", ftell(inputFID));
+	      fprintf(stderr, "Found movie data (at file position 0x%08lx)\n", ftell(inputFID));
 	      sawEndOfJPEGs = 1;
 	      break;
 	    } else {
@@ -726,14 +727,14 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 	unsigned char c;
 	unsigned long filePosition = ftell(inputFID)-4;
 
-	fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
+	fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
 	do {
 	  if (!get1Byte(inputFID, &c)) return;
 	  nalSize = (nalSize<<8)|c;
 	} while (nalSize != 2);
 
 	filePosition = ftell(inputFID)-4;
-	fprintf(stderr, "...resuming at file position 0x%lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
+	fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
       }
     }
   }
@@ -754,6 +755,7 @@ static unsigned char type3_H264_SPS_2160x4096p25[] = { 0x27, 0x64, 0x00, 0x33, 0
 static unsigned char type3_H265_SPS_2160x3840p25[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xac, 0x09, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p25[] = { 0x27, 0x64, 0x00, 0x33, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x00, 0x00, 0x18, 0x6a, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x35, 0xa4, 0xe9, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x05, 0xf5, 0xe0, 0x00, 0x00, 0x6b, 0x49, 0xd2, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p24[] = { 0x27, 0x64, 0x00, 0x33, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x00, 0x00, 0x17, 0x70, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x35, 0xa4, 0xe9, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x05, 0xf5, 0xe0, 0x00, 0x00, 0x6b, 0x49, 0xd2, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
+static unsigned char type3_H265_SPS_1530p50[] = { 0x40, 0x01, 0x0c, 0x01, 0xff, 0xff, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xac, 0x09, 0xfe };
 static unsigned char type3_H264_SPS_1530p48[] = { 0x27, 0x64, 0x00, 0x33, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1f, 0x93, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0xbb, 0x80, 0x74, 0x30, 0x00, 0x0b, 0xeb, 0xc0, 0x00, 0x00, 0xd6, 0x93, 0xa5, 0xde, 0x5c, 0x68, 0x60, 0x00, 0x17, 0xd7, 0x80, 0x00, 0x01, 0xad, 0x27, 0x4b, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x45, 0x80, 0xfe };
 // Old data, obsoleted by newer Mavic Mini format:
 //static unsigned char type3_H264_SPS_1530p30[] = { 0x27, 0x64, 0x00, 0x32, 0xac, 0x34, 0xc8, 0x02, 0xa8, 0x0c, 0x1b, 0x01, 0x6a, 0x02, 0x02, 0x02, 0x80, 0x00, 0x01, 0xf4, 0x80, 0x00, 0x75, 0x30, 0x74, 0x30, 0x00, 0x09, 0x89, 0x68, 0x00, 0x00, 0xab, 0xa9, 0x55, 0xde, 0x5c, 0x68, 0x60, 0x00, 0x13, 0x12, 0xd0, 0x00, 0x01, 0x57, 0x52, 0xab, 0xbc, 0xb8, 0x7c, 0x22, 0x11, 0x45, 0x80, 0xfe };
@@ -784,6 +786,7 @@ static unsigned char type3_H264_PPS_MavicMini[] = { 0x68, 0xee, 0x38, 0x30, 0xfe
 static unsigned char type3_H265_PPS_2160x4096p30[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x00, 0x80, 0x08, 0x00, 0x87, 0x1f, 0xe5, 0xae, 0xed, 0x4d, 0xdd, 0xc9, 0x75, 0x80, 0xb5, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x0f, 0xa0, 0x00, 0x01, 0x86, 0xa0, 0xae, 0x11, 0x08, 0x20, 0xfe };
 static unsigned char type3_H265_PPS_2160x3840p30[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb5, 0x37, 0x77, 0x25, 0xd6, 0x02, 0xd4, 0x04, 0x04, 0x04, 0x10, 0x00, 0x00, 0x3e, 0x90, 0x00, 0x07, 0x53, 0x02, 0xb8, 0x44, 0x20, 0x80, 0xfe };
 static unsigned char type3_H265_PPS_2160x3840p25[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb5, 0x37, 0x77, 0x25, 0xd6, 0x02, 0xd4, 0x04, 0x04, 0x04, 0x10, 0x00, 0x00, 0x3e, 0x80, 0x00, 0x06, 0x1a, 0x82, 0xb8, 0x44, 0x20, 0x80, 0xfe };
+static unsigned char type3_H265_PPS_1530p50[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0x54, 0x20, 0x06, 0x01, 0xf2, 0x65, 0xae, 0xed, 0x4d, 0xdd, 0xc9, 0x75, 0x80, 0xb5, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x0f, 0xa4, 0x00, 0x03, 0x0d, 0x40, 0xae, 0x11, 0x08, 0x20, 0xfe };
 static unsigned char type3_H265_PPS_1080p120[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe7, 0xf9, 0x6b, 0xbb, 0x53, 0x77, 0x72, 0x5d, 0x60, 0x2d, 0x40, 0x40, 0x40, 0x41, 0x00, 0x00, 0x03, 0x03, 0xe9, 0x00, 0x01, 0xd4, 0xc0, 0x2b, 0x84, 0x42, 0x08, 0xfe };
 static unsigned char type3_H265_PPS_1080p60[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x7b, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe7, 0xf9, 0x6b, 0xbb, 0x53, 0x77, 0x72, 0x5d, 0x60, 0x2d, 0x40, 0x40, 0x40, 0x41, 0x00, 0x00, 0x03, 0x03, 0xe9, 0x00, 0x00, 0xea, 0x60, 0x2b, 0x84, 0x42, 0x08, 0xfe };
 static unsigned char type3_H265_PPS_1080p25[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x7b, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xa7, 0xf9, 0x6b, 0xbb, 0x53, 0x77, 0x72, 0x5d, 0x60, 0x2d, 0x40, 0x40, 0x40, 0x41, 0x00, 0x00, 0x03, 0x03, 0xe8, 0x00, 0x00, 0x61, 0xa8, 0x2b, 0x84, 0x42, 0x08, 0xfe };
@@ -791,6 +794,7 @@ static unsigned char type3_H264_PPS_480p[] = { 0x68, 0xee, 0x3c, 0xb0, 0xfe };
 
 static unsigned char type3_H265_VPS_2160x4096p30[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0, 0x9c, 0x0a, 0xc1, 0x5e, 0x24, 0xfe };
 static unsigned char type3_H265_VPS_2160x3840[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0, 0x9c, 0x0a, 0x01, 0x46, 0x24, 0xfe };
+static unsigned char type3_H265_VPS_1530p[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0, 0x9c, 0x1d, 0x0e, 0xe2, 0x40, 0xfe };
 static unsigned char type3_H265_VPS_1080p[] = { 0x44, 0x01, 0xc1, 0x72, 0xb0, 0x9c, 0x14, 0x0a, 0x62, 0x40, 0xfe };
 
 
@@ -826,33 +830,34 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 25fps: Type b, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type c, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type d, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 48fps: Type e, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 30fps: Type f, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 25fps: Type g, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps (Mavic Mini): Type h, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps (other DJI drones): Type i, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 120fps: Type j, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 120fps: Type k, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 60fps: Type l, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (Mavic Mini): Type m, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (other DJI drones): Type n, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 50fps: Type o, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (Mavic Mini): Type p, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (other DJI drones): Type q, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type r, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps (Mavic Mini): Type s, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps (other DJI drones): Type t, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps (Mavic Mini): Type u, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps (other DJI drones): Type v, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type w, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type x, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1530p, 50fps: Type e, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 48fps: Type f, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 30fps: Type g, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 25fps: Type h, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps (Mavic Mini): Type i, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1530p, 24fps (other DJI drones): Type j, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 120fps: Type k, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 120fps: Type l, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 60fps: Type m, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (Mavic Mini): Type n, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps (other DJI drones): Type o, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 50fps: Type p, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (Mavic Mini): Type q, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps (other DJI drones): Type r, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type s, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps (Mavic Mini): Type t, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps (other DJI drones): Type u, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps (Mavic Mini): Type v, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 24fps (other DJI drones): Type w, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type x, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 480p, 30fps (e.g., from a XL FLIR camera): Type y, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 'x') ||
-	  (formatCode >= 'A' && formatCode <= 'X')) {
+	  (formatCode >= 'a' && formatCode <= 'y') ||
+	  (formatCode >= 'A' && formatCode <= 'Y')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -874,28 +879,29 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       case 'b': case 'B': { sps = type3_H265_SPS_2160x3840p25; pps = type3_H265_PPS_2160x3840p25; vps = type3_H265_VPS_2160x3840; break; }
       case 'c': case 'C': { sps = type3_H264_SPS_2160x3840p25; pps = type3_H264_PPS_default; break; }
       case 'd': case 'D': { sps = type3_H264_SPS_2160x3840p24; pps = type3_H264_PPS_default; break; }
-      case 'e': case 'E': { sps = type3_H264_SPS_1530p48; pps = type3_H264_PPS_default; break; }
+      case 'e': case 'E': { sps = type3_H265_SPS_1530p50; pps = type3_H265_PPS_1530p50; vps = type3_H265_VPS_1530p; break; }
+      case 'f': case 'F': { sps = type3_H264_SPS_1530p48; pps = type3_H264_PPS_default; break; }
 // Old data, obsoleted by newer Mavic Mini format:
-//      case 'f': case 'F': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_default; break; }
-      case 'f': case 'F': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_MavicMini; break; }
-      case 'g': case 'G': { sps = type3_H264_SPS_1530p25; pps = type3_H264_PPS_MavicMini; break; }
-      case 'h': case 'H': { sps = type3_H264_SPS_1530p24_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'i': case 'I': { sps = type3_H264_SPS_1530p24_other; pps = type3_H264_PPS_default; break; }
-      case 'j': case 'J': { sps = type3_H265_SPS_1080p120; pps = type3_H265_PPS_1080p120; vps = type3_H265_VPS_1080p; break; }
-      case 'k': case 'K': { sps = type3_H264_SPS_1080p120; pps = type3_H264_PPS_default; break; }
-      case 'l': case 'L': { sps = type3_H265_SPS_1080p60; pps = type3_H265_PPS_1080p60; vps = type3_H265_VPS_1080p; break; }
-      case 'm': case 'M': { sps = type3_H264_SPS_1080p60_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'n': case 'N': { sps = type3_H264_SPS_1080p60_other; pps = type3_H264_PPS_default; break; }
-      case 'o': case 'O': { sps = type3_H264_SPS_1080p50_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'p': case 'P': { sps = type3_H264_SPS_1080p30_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'q': case 'Q': { sps = type3_H264_SPS_1080p30_other; pps = type3_H264_PPS_default; break; }
-      case 'r': case 'R': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
-      case 's': case 'S': { sps = type3_H264_SPS_1080p25_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 't': case 'T': { sps = type3_H264_SPS_1080p25_other; pps = type3_H264_PPS_default; break; }
-      case 'u': case 'U': { sps = type3_H264_SPS_1080p24_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
-      case 'v': case 'V': { sps = type3_H264_SPS_1080p24_other; pps = type3_H264_PPS_default; break; }
-      case 'w': case 'W': { sps = type3_H264_SPS_720p30; pps = type3_H264_PPS_default; break; }
-      case 'x': case 'X': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
+//      case 'g': case 'G': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_default; break; }
+      case 'g': case 'G': { sps = type3_H264_SPS_1530p30; pps = type3_H264_PPS_MavicMini; break; }
+      case 'h': case 'H': { sps = type3_H264_SPS_1530p25; pps = type3_H264_PPS_MavicMini; break; }
+      case 'i': case 'I': { sps = type3_H264_SPS_1530p24_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'j': case 'J': { sps = type3_H264_SPS_1530p24_other; pps = type3_H264_PPS_default; break; }
+      case 'k': case 'K': { sps = type3_H265_SPS_1080p120; pps = type3_H265_PPS_1080p120; vps = type3_H265_VPS_1080p; break; }
+      case 'l': case 'L': { sps = type3_H264_SPS_1080p120; pps = type3_H264_PPS_default; break; }
+      case 'm': case 'M': { sps = type3_H265_SPS_1080p60; pps = type3_H265_PPS_1080p60; vps = type3_H265_VPS_1080p; break; }
+      case 'n': case 'N': { sps = type3_H264_SPS_1080p60_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'o': case 'O': { sps = type3_H264_SPS_1080p60_other; pps = type3_H264_PPS_default; break; }
+      case 'p': case 'P': { sps = type3_H264_SPS_1080p50_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'q': case 'Q': { sps = type3_H264_SPS_1080p30_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'r': case 'R': { sps = type3_H264_SPS_1080p30_other; pps = type3_H264_PPS_default; break; }
+      case 's': case 'S': { sps = type3_H265_SPS_1080p25; pps = type3_H265_PPS_1080p25; vps = type3_H265_VPS_1080p; break; }
+      case 't': case 'T': { sps = type3_H264_SPS_1080p25_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'u': case 'U': { sps = type3_H264_SPS_1080p25_other; pps = type3_H264_PPS_default; break; }
+      case 'v': case 'V': { sps = type3_H264_SPS_1080p24_MavicMini; pps = type3_H264_PPS_MavicMini; break; }
+      case 'w': case 'W': { sps = type3_H264_SPS_1080p24_other; pps = type3_H264_PPS_default; break; }
+      case 'x': case 'X': { sps = type3_H264_SPS_720p30; pps = type3_H264_PPS_default; break; }
+      case 'y': case 'Y': { sps = type3_H264_SPS_480p30; pps = type3_H264_PPS_480p; break; }
       default: { sps = type3_H264_SPS_2160x3840p30; pps = type3_H264_PPS_default; break; } /* shouldn't happen */
     };
 
@@ -978,7 +984,7 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       } else if (nalSize == 0 || nalSize > 0x00FFFFFF) {
 	unsigned long filePosition = ftell(inputFID)-4;
 
-	fprintf(stderr, "\n(Anomalous NAL unit size 0x%08x @ file position 0x%lx (%lu MBytes))\n", nalSize, filePosition, filePosition/1000000);
+	fprintf(stderr, "\n(Anomalous NAL unit size 0x%08x @ file position 0x%08lx (%lu MBytes))\n", nalSize, filePosition, filePosition/1000000);
 	fprintf(stderr, "(We can't repair any more than %lu MBytes of this file - sorry...)\n", filePosition/1000000);
 	/* We can't recover from this, so stop here: */
 	break;
@@ -1014,7 +1020,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
       unsigned next4Bytes;
       unsigned long filePosition = ftell(inputFID)-4;
 
-      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
+      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
       if (!get4Bytes(inputFID, &next4Bytes)) return; /*eof*/
       while (!checkForVideo(nalSize, next4Bytes)) {
 	unsigned char c;
@@ -1025,7 +1031,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
       }
       fseek(inputFID, -4, SEEK_CUR);
       filePosition = ftell(inputFID)-4;
-      fprintf(stderr, "...resuming at file position 0x%lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
+      fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
     }
 
     putStartCode(outputFID);

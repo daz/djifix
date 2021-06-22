@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2021-01-24
+    Version 2021-06-21
 
     Copyright (c) 2014-2021 Live Networks, Inc.  All rights reserved.
 
@@ -119,9 +119,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2020-04-14: The SPS for H.264 1530p/30 (type 3)(Mavic Mini) appears to have changed slightly.
     - 2020-05-05: We now support two additional video formats - H.264 1530p/24 (type 3)(Mavic Mini),
                   and H.264 1080p/24  (type 3)(Mavic Mini)
-     - 2020-07-12: We now support an additional video format - H.265 1530p50 (type 3)
-     - 2021-01-01: We now support an additional video format - H.265 2160(x3840)p30 (type 3)(DJI Mini 2)
-     - 2021-01-24: We now support an additional video format - H.264 1520p60 (type 3)(DJI Mini 2)
+    - 2020-07-12: We now support an additional video format - H.265 1530p50 (type 3)
+    - 2021-01-01: We now support an additional video format - H.265 2160(x3840)p30 (type 3)(DJI Mini 2)
+    - 2021-01-24: We now support an additional video format - H.264 1520p60 (type 3)(DJI Mini 2)
+    - 2021-06-21: Improved the checking for video in 'type 4' repairs, to (at least partially)
+                  repair some Mavic FPV videos.
 */
 
 #include <stdio.h>
@@ -158,6 +160,33 @@ static int checkForVideo(unsigned first4Bytes, unsigned next4Bytes) {
 	&& first4Bytes > 10 && first4Bytes < 40);
 }
 
+static int checkForVideoType4(unsigned first4Bytes, unsigned next4Bytes) {
+  /* A special version of "checkForVideo()" that works well for 'type 4' repairs: */
+  unsigned char nextByte, nextNextByte;
+
+  if (first4Bytes == 0 || first4Bytes > 0x008FFFFF) return 0; /* nalSize would be bad */
+
+  nextByte = next4Bytes>>24;
+  nextNextByte = next4Bytes>>16;
+  switch (nextByte) {
+    case 0x00: return nextNextByte == 0x01;
+    case 0x01: return (nextNextByte >= 0x1e && nextNextByte < 0x40) || nextNextByte >= 0xF0;
+    case 0x02: return nextNextByte == 0x01;
+    case 0x26: return nextNextByte == 0x01;
+    case 0x28: return nextNextByte == 0x01;
+    case 0x40: return nextNextByte == 0x01;
+    case 0x41: return nextNextByte >= 0xE0;
+    case 0x42: return nextNextByte == 0x01;
+    case 0x44: return nextNextByte == 0x01;
+    case 0x61: return nextNextByte >= 0xE0;
+    case 0x65: return nextNextByte >= 0xB0;
+      //    case 0x67: return nextNextByte >= 0x60; // SPS needs to be correct, so ignore this
+      //    case 0x68: return nextNextByte >= 0xE0; // PPS needs to be correct, so ignore this
+    case 0x6D: return nextNextByte >= 0x60;
+    default: return 0;
+  }
+}
+
 #define fourcc_ftyp (('f'<<24)|('t'<<16)|('y'<<8)|'p')
 #define fourcc_moov (('m'<<24)|('o'<<16)|('o'<<8)|'v')
 #define fourcc_free (('f'<<24)|('r'<<16)|('e'<<8)|'e')
@@ -173,11 +202,12 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2021-01-24";
+static char const* versionStr = "2021-06-21";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
 
+//unsigned codeCount[65536];//#####@@@@@
 int main(int argc, char** argv) {
   char* inputFileName;
   char* outputFileName;
@@ -473,6 +503,7 @@ int main(int argc, char** argv) {
     fclose(outputFID);
     fprintf(stderr, "\nRepaired file is \"%s\"\n", outputFileName);
     free(outputFileName);
+    //    for (unsigned i = 0; i < 65536; ++i) if (codeCount[i] > 0) fprintf(stderr, "0x%04x: %d\n", i, codeCount[i]);//#####@@@@@
 
     if (repairType > 1) {
       fprintf(stderr, "This file can be played by the VLC media player (available at <http://www.videolan.org/vlc/>), or by the IINA media player (for MacOS; available at <https://lhc70000.github.io/iina/>).\n");
@@ -729,7 +760,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 	unsigned char c;
 	unsigned long filePosition = ftell(inputFID)-4;
 
-	fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
+	fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%08x), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
 	do {
 	  if (!get1Byte(inputFID, &c)) return;
 	  nalSize = (nalSize<<8)|c;
@@ -1026,9 +1057,9 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
       unsigned next4Bytes;
       unsigned long filePosition = ftell(inputFID)-4;
 
-      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%X), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
+      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%08x), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
       if (!get4Bytes(inputFID, &next4Bytes)) return; /*eof*/
-      while (!checkForVideo(nalSize, next4Bytes)) {
+      while (!checkForVideoType4(nalSize, next4Bytes)) {
 	unsigned char c;
 
 	if (!get1Byte(inputFID, &c)) return;/*eof*/
@@ -1039,6 +1070,9 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
       filePosition = ftell(inputFID)-4;
       fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
     }
+    //    unsigned next4Bytes; if (!get4Bytes(inputFID, &next4Bytes)) return; fseek(inputFID, -4, SEEK_CUR);//#####@@@@@
+    //    ++codeCount[next4Bytes>>16];//#####@@@@@
+    //    fprintf(stderr, "#####@@@@@ nalSize 0x%08x, next4Bytes 0x%08x\n", nalSize, next4Bytes);
 
     putStartCode(outputFID);
     while (nalSize-- > 0) {

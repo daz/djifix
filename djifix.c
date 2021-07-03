@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2021-06-21
+    Version 2021-07-02
 
     Copyright (c) 2014-2021 Live Networks, Inc.  All rights reserved.
 
@@ -124,6 +124,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2021-01-24: We now support an additional video format - H.264 1520p60 (type 3)(DJI Mini 2)
     - 2021-06-21: Improved the checking for video in 'type 4' repairs, to (at least partially)
                   repair some Mavic FPV videos.
+    - 2021-07-02: We now support videos from "DJI Mini 2" drones.  These are similar to
+                  'type 3' videos, but lack a JPEG prefix.  We designate them as 'type 5'
+		  videos, and allow the user to select only known "DJI Mini 2" formats.
+                  We can now handle extended atom sizes for 'mdat' atoms (because we don't
+		  use the size of 'mdat' atoms)
 */
 
 #include <stdio.h>
@@ -201,6 +206,8 @@ static void doRepairType1(FILE* inputFID, FILE* outputFID, unsigned ftypSize); /
 static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes); /* forward */
 static void doRepairType3(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
+static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
+static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
 static char const* versionStr = "2021-06-21";
 static char const* repairedFilenameStr = "-repaired";
@@ -390,14 +397,14 @@ int main(int argc, char** argv) {
 
       if (repairType == 2) {
 	unsigned first4Bytes, next4Bytes;
-	int saw2 = 0;
+	int sawVideo = 0;
 
 	/* Check for known video occurring next: */
 	fprintf(stderr, "Looking for video data...\n");
 	if (get4Bytes(inputFID, &first4Bytes) && get4Bytes(inputFID, &next4Bytes)) {
 	  while (1) {
 	    if (checkForVideo(first4Bytes, next4Bytes)) {
-	      saw2 = 1;
+	      sawVideo = 1;
 	      if (first4Bytes == 0x00000002) {
 		fprintf(stderr, "Found 0x00000002 (at file position 0x%08lx)\n", ftell(inputFID) - 8);
 		repairType2Second4Bytes = next4Bytes;
@@ -406,6 +413,14 @@ int main(int argc, char** argv) {
 		fseek(inputFID, -8, SEEK_CUR);
 		repairType = 4; /* special case */
 	      }
+	      break;
+	    } else if (first4Bytes < 0x01000000 && (next4Bytes&0xFFFF0000) == 0x65B80000) {
+	      /* A special case: This looks like H.264 data for a DJI Mini 2 ('type 5') video */
+	      sawVideo = 1;
+	      fprintf(stderr, "Found possible H.264 video data, at file position 0x%08lx\n",
+		      ftell(inputFID) - 8);
+	      fseek(inputFID, -8, SEEK_CUR);
+	      repairType = 5;
 	      break;
 	    } else {
 	      unsigned char c;
@@ -417,7 +432,7 @@ int main(int argc, char** argv) {
 	  }
 	}
 
-	if (!saw2) {
+	if (!sawVideo) {
 	  /* OK, now we have to give up: */
 	  fprintf(stderr, "Didn't see any obvious video data.%s\n", cantRepair);
 	  break;
@@ -497,6 +512,8 @@ int main(int argc, char** argv) {
       doRepairType3(inputFID, outputFID);
     } else if (repairType == 4) {
       doRepairType4(inputFID, outputFID);
+    } else if (repairType == 5) {
+      doRepairType5(inputFID, outputFID);
     }
 
     fprintf(stderr, "...done\n");
@@ -547,15 +564,16 @@ static int checkAtom(FILE* fid, unsigned fourccToCheck, unsigned* numRemainingBy
 
     if (!get4Bytes(fid, &fourcc) || fourcc != fourccToCheck) break;
     
+    /* For 'mdat' atoms, ignore the size, because we don't use it: */
+    if (fourcc == fourcc_mdat) return 1;
+
     if (atomSize == 1) {
       fprintf(stderr, "Saw an extended (64-bit) atom size.  We currently don't handle this!\n");
       exit(1);
     }
 
-    /* Check the atom size.  It should be >= 8.  However, we allow smaller (broken) atom sizes
-       for 'mdat' atoms, because for them we don't use the atom size anyway:
-    */
-    if (atomSize < 8 && fourcc != fourcc_mdat) break;
+    /* Check the atom size.  It should be >= 8. */
+    if (atomSize < 8) break;
     *numRemainingBytesToSkip = atomSize - 8;
 
     return 1;
@@ -957,7 +975,121 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
     }
   }
 
-  /* Then repeatedly:
+  doRepairType3or5Common(inputFID, outputFID);
+}
+
+static void doRepairType4(FILE* inputFID, FILE* outputFID) {
+  /* A special type of repair, when we already know that the file begins with a SPS (etc.).
+     Repeatedly:
+     1/ Read a 4-byte NAL unit size.
+     2/ Write a 'start code'.
+     3/ Read 'NAL unit size' bytes, and write them to the output file.
+  */
+  unsigned nalSize;
+
+  fprintf(stderr, "%s", startingToRepair);
+  while (!feof(inputFID)) {
+    if (!get4Bytes(inputFID, &nalSize)) return;
+    if (nalSize == 0 || nalSize > 0x008FFFFF) {
+      /* An anomalous situation (we got a NAL size that's 0, or much bigger than normal).
+	 This suggests that the data here is not really video (or is corrupt in some other way).
+	 Try to recover from this by repeatedly reading bytes until we see what we think is
+	 video.  With luck, that will begin sane data once again.
+	*/
+      unsigned next4Bytes;
+      unsigned long filePosition = ftell(inputFID)-4;
+
+      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%08x), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
+      if (!get4Bytes(inputFID, &next4Bytes)) return; /*eof*/
+      while (!checkForVideoType4(nalSize, next4Bytes)) {
+	unsigned char c;
+
+	if (!get1Byte(inputFID, &c)) return;/*eof*/
+	nalSize = ((nalSize<<8)&0xFFFFFF00) | ((next4Bytes>>24)&0x000000FF);
+	next4Bytes = ((next4Bytes<<8)&0xFFFFFF00) | c;
+      }
+      fseek(inputFID, -4, SEEK_CUR);
+      filePosition = ftell(inputFID)-4;
+      fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
+    }
+    //    unsigned next4Bytes; if (!get4Bytes(inputFID, &next4Bytes)) return; fseek(inputFID, -4, SEEK_CUR);//#####@@@@@
+    //    ++codeCount[next4Bytes>>16];//#####@@@@@
+    //    fprintf(stderr, "#####@@@@@ nalSize 0x%08x, next4Bytes 0x%08x\n", nalSize, next4Bytes);
+
+    putStartCode(outputFID);
+    while (nalSize-- > 0) {
+      wr(fgetc(inputFID));
+    }
+  }
+}
+
+#define type5_H264_SPS_2160x3840p30_DJIMini2 type3_H264_SPS_2160x3840p30_DJIMini2 /* same */
+static unsigned char type5_H264_SPS_2160x3840p24_DJIMini2[] = { 0x67, 0x64, 0x00, 0x33, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x20, 0x00, 0x17, 0x70, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x2f, 0xaf, 0x09, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x05, 0xf5, 0xe0, 0x00, 0x00, 0x5f, 0x5e, 0x12, 0xef, 0x2e, 0x1f, 0x08, 0x84, 0x51, 0x60, 0xfe };
+static unsigned char type5_H264_SPS_1080p48_DJIMini2[] = { 0x67, 0x64, 0x00, 0x2a, 0xac, 0x34, 0xc8, 0x07, 0x80, 0x22, 0x7e, 0x5c, 0x05, 0xa8, 0x08, 0x08, 0x0a, 0x00, 0x00, 0x07, 0xd2, 0x00, 0x02, 0xee, 0x01, 0xd0, 0xc0, 0x00, 0x4c, 0x4b, 0x00, 0x00, 0x13, 0x12, 0xd1, 0x77, 0x97, 0x1a, 0x18, 0x00, 0x09, 0x89, 0x60, 0x00, 0x02, 0x62, 0x5a, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
+
+#define type5_H264_PPS_DJIMini2 type3_H264_PPS_MavicMini /* same */
+
+static void doRepairType5(FILE* inputFID, FILE* outputFID) {
+  /* This is identical to 'type 3', except that the possible video formats are assumed
+     to be those for "DJI Mini 2" drones only.
+  */
+  /* Begin the repair by writing SPS, PPS, and (for H.265) VPS NAL units
+     (each preceded by a 'start code'):
+  */
+  {
+    int formatCode;
+    unsigned char* sps;
+    unsigned char* pps;
+    unsigned char* vps = NULL; /* by default, for H.264 */
+    unsigned char c;
+
+    /* The content of the SPS, PPS, and VPS NAL units depends upon which video format was used.
+       Prompt the user for this now:
+    */
+    while (1) {
+      fprintf(stderr, "First, however, we need to know which video format was used.  Enter this now.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type 0, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type 1, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type 2, then the \"Return\" key.\n");
+      fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
+      fprintf(stderr, " try again with another format.)\n");
+      fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
+      do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
+      if ((formatCode >= '0' && formatCode <= '2')) {
+	break;
+      }
+      fprintf(stderr, "Invalid entry!\n");
+    }     
+
+    fprintf(stderr, "%s", startingToRepair);
+    switch (formatCode) {
+      case '0': { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case '1': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case '2': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      default: { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; } /* shouldn't happen */
+#define type5_H264_PPS_DJIMini2 type3_H264_PPS_MavicMini /* same */
+    };
+
+    /*SPS*/
+    putStartCode(outputFID);
+    while ((c = *sps++) != 0xfe) wr(c);
+
+    /*PPS*/
+    putStartCode(outputFID);
+    while ((c = *pps++) != 0xfe) wr(c);
+
+    /*VPS*/
+    if (vps != NULL) {
+      putStartCode(outputFID);
+      while ((c = *vps++) != 0xfe) wr(c);
+    }
+  }
+
+  doRepairType3or5Common(inputFID, outputFID);
+}
+
+static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
+  /* Repeatedly:
      1/ Read a 4-byte NAL unit size.
      2/ Write a 'start code'.
      3/ Read 'NAL unit size' bytes, and write them to the output file.
@@ -1031,52 +1163,6 @@ static void doRepairType3(FILE* inputFID, FILE* outputFID) {
       while (nalSize-- > 0) {
 	wr(fgetc(inputFID));
       }
-    }
-  }
-}
-
-
-static void doRepairType4(FILE* inputFID, FILE* outputFID) {
-  /* A special type of repair, when we already know that the file begins with a SPS (etc.).
-     Repeatedly:
-     1/ Read a 4-byte NAL unit size.
-     2/ Write a 'start code'.
-     3/ Read 'NAL unit size' bytes, and write them to the output file.
-  */
-  unsigned nalSize;
-
-  fprintf(stderr, "%s", startingToRepair);
-  while (!feof(inputFID)) {
-    if (!get4Bytes(inputFID, &nalSize)) return;
-    if (nalSize == 0 || nalSize > 0x008FFFFF) {
-      /* An anomalous situation (we got a NAL size that's 0, or much bigger than normal).
-	 This suggests that the data here is not really video (or is corrupt in some other way).
-	 Try to recover from this by repeatedly reading bytes until we see what we think is
-	 video.  With luck, that will begin sane data once again.
-	*/
-      unsigned next4Bytes;
-      unsigned long filePosition = ftell(inputFID)-4;
-
-      fprintf(stderr, "\n(Skipping over anomalous bytes (nalSize 0x%08x), starting at file position 0x%08lx (%lu MBytes))...\n", nalSize, filePosition, filePosition/1000000);
-      if (!get4Bytes(inputFID, &next4Bytes)) return; /*eof*/
-      while (!checkForVideoType4(nalSize, next4Bytes)) {
-	unsigned char c;
-
-	if (!get1Byte(inputFID, &c)) return;/*eof*/
-	nalSize = ((nalSize<<8)&0xFFFFFF00) | ((next4Bytes>>24)&0x000000FF);
-	next4Bytes = ((next4Bytes<<8)&0xFFFFFF00) | c;
-      }
-      fseek(inputFID, -4, SEEK_CUR);
-      filePosition = ftell(inputFID)-4;
-      fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
-    }
-    //    unsigned next4Bytes; if (!get4Bytes(inputFID, &next4Bytes)) return; fseek(inputFID, -4, SEEK_CUR);//#####@@@@@
-    //    ++codeCount[next4Bytes>>16];//#####@@@@@
-    //    fprintf(stderr, "#####@@@@@ nalSize 0x%08x, next4Bytes 0x%08x\n", nalSize, next4Bytes);
-
-    putStartCode(outputFID);
-    while (nalSize-- > 0) {
-      wr(fgetc(inputFID));
     }
   }
 }

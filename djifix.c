@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2021-07-04
+    Version 2021-11-08
 
     Copyright (c) 2014-2021 Live Networks, Inc.  All rights reserved.
 
@@ -135,6 +135,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 		  To keep the number of (type 3) choices under control, we remove support
 		  for H.265 120fps and H.264 120 fps.  If, however, someone needs these,
 		  then let us know and we'll re-add them.
+    - 2021-11-08: We now support an additional video format - H.264 720p24 (type 5)
 */
 
 #include <stdio.h>
@@ -215,7 +216,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2021-07-04";
+static char const* versionStr = "2021-11-08";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1038,8 +1039,10 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
 #define type5_H264_SPS_2160x3840p30_DJIMini2 type3_H264_SPS_2160x3840p30_DJIMini2 /* same */
 #define type5_H264_SPS_2160x3840p24_DJIMini2 type3_H264_SPS_2160x3840p24_DJIMini2 /* same */
 #define type5_H264_SPS_1080p48_DJIMini2 type3_H264_SPS_1080p48_DJIMini2 /* same */
+static unsigned char type5_H264_SPS_720p24[] = { 0x67, 0x42, 0x80, 0x1f, 0xda, 0x01, 0x40, 0x16, 0xe9, 0x48, 0x28, 0x30, 0x30, 0x36, 0x85, 0x09, 0xa8, 0xfe };
 
 #define type5_H264_PPS_DJIMini2 type3_H264_PPS_MavicMini /* same */
+static unsigned char type5_H264_PPS_720p24[] = { 0x68, 0xce, 0x06, 0xf2, 0xfe };
 
 static void doRepairType5(FILE* inputFID, FILE* outputFID) {
   /* This is identical to 'type 3', except that the possible video formats are assumed
@@ -1063,11 +1066,12 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type 0, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type 1, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type 2, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type 3, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
-      if ((formatCode >= '0' && formatCode <= '2')) {
+      if ((formatCode >= '0' && formatCode <= '3')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -1078,6 +1082,7 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       case '0': { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
       case '1': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
       case '2': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case '3': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
       default: { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; } /* shouldn't happen */
 #define type5_H264_PPS_DJIMini2 type3_H264_PPS_MavicMini /* same */
     };

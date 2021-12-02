@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2021-11-08
+    Version 2021-12-02
 
     Copyright (c) 2014-2021 Live Networks, Inc.  All rights reserved.
 
@@ -136,6 +136,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 		  for H.265 120fps and H.264 120 fps.  If, however, someone needs these,
 		  then let us know and we'll re-add them.
     - 2021-11-08: We now support an additional video format - H.264 720p24 (type 5)
+    - 2021-12-02: We now handle 'isom' in addition to 'ftyp' at/near the start of the file.
 */
 
 #include <stdio.h>
@@ -199,12 +200,13 @@ static int checkForVideoType4(unsigned first4Bytes, unsigned next4Bytes) {
   }
 }
 
-#define fourcc_ftyp (('f'<<24)|('t'<<16)|('y'<<8)|'p')
-#define fourcc_moov (('m'<<24)|('o'<<16)|('o'<<8)|'v')
 #define fourcc_free (('f'<<24)|('r'<<16)|('e'<<8)|'e')
+#define fourcc_ftyp (('f'<<24)|('t'<<16)|('y'<<8)|'p')
+#define fourcc_isom (('i'<<24)|('s'<<16)|('o'<<8)|'m')
 #define fourcc_mdat (('m'<<24)|('d'<<16)|('a'<<8)|'t')
-#define fourcc_wide (('w'<<24)|('i'<<16)|('d'<<8)|'e')
 #define fourcc_mijd (('m'<<24)|('i'<<16)|('j'<<8)|'d')
+#define fourcc_moov (('m'<<24)|('o'<<16)|('o'<<8)|'v')
+#define fourcc_wide (('w'<<24)|('i'<<16)|('d'<<8)|'e')
 
 static int get1Byte(FILE* fid, unsigned char* result); /* forward */
 static int get4Bytes(FILE* fid, unsigned* result); /* forward */
@@ -216,7 +218,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2021-11-08";
+static char const* versionStr = "2021-12-02";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -263,15 +265,15 @@ int main(int argc, char** argv) {
 
       fileStartIsOK = 1;
       while (1) {
-	if (next4Bytes == fourcc_ftyp) {
+	if (next4Bytes == fourcc_ftyp || next4Bytes == fourcc_isom) {
 	  /* Repair type 1 */
 	  if (first4Bytes < 8 || first4Bytes > 0x000000FF) {
-	    fprintf(stderr, "Ignoring bad length 0x%08x for initial 'ftyp' atom\n", first4Bytes);
+	    fprintf(stderr, "Ignoring bad length 0x%08x for initial 'ftyp' or 'isom' atom\n", first4Bytes);
 	  } else if (fseek(inputFID, first4Bytes-8, SEEK_CUR) != 0) {
-	    fprintf(stderr, "Bad length for initial 'ftyp' atom.%s\n", cantRepair);
+	    fprintf(stderr, "Bad length for initial 'ftyp' or 'isom' atom.%s\n", cantRepair);
 	    fileStartIsOK = 0;
 	  } else {
-	    if (!amAtStartOfFile) fprintf(stderr, "Found 'ftyp' (at file position 0x%08lx)\n", ftell(inputFID) - 8); else fprintf(stderr, "Saw initial 'ftyp'.\n");
+	    if (!amAtStartOfFile) fprintf(stderr, "Found 'ftyp' or 'isom' (at file position 0x%08lx)\n", ftell(inputFID) - 8); else fprintf(stderr, "Saw initial 'ftyp'or 'isom'.\n");
 	  }
 	} else if (checkFor0x00000002(first4Bytes, next4Bytes)) {
 	  /* Assume repair type 2 */
@@ -296,7 +298,7 @@ int main(int argc, char** argv) {
 	  unsigned char c;
 
 	  if (amAtStartOfFile) {
-	    fprintf(stderr, "Didn't see an initial 'ftyp' atom, or 0x00000002.  Looking for data that we understand...\n");
+	    fprintf(stderr, "Didn't see an initial 'ftyp' or 'isom' atom, or 0x00000002.  Looking for data that we understand...\n");
 	    amAtStartOfFile = 0;
 	  }
 	  if (!get1Byte(inputFID, &c)) {

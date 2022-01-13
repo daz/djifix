@@ -15,9 +15,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2021-12-02
+    Version 2022-01-13
 
-    Copyright (c) 2014-2021 Live Networks, Inc.  All rights reserved.
+    Copyright (c) 2014-2022 Live Networks, Inc.  All rights reserved.
 
     Version history:
     - 2014-09-01: Initial version
@@ -137,6 +137,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 		  then let us know and we'll re-add them.
     - 2021-11-08: We now support an additional video format - H.264 720p24 (type 5)
     - 2021-12-02: We now handle 'isom' in addition to 'ftyp' at/near the start of the file.
+    - 2022-01-13: We now handle a more general metadata block format (seen in the Mavic Mini SE)
 */
 
 #include <stdio.h>
@@ -209,6 +210,7 @@ static int checkForVideoType4(unsigned first4Bytes, unsigned next4Bytes) {
 #define fourcc_wide (('w'<<24)|('i'<<16)|('d'<<8)|'e')
 
 static int get1Byte(FILE* fid, unsigned char* result); /* forward */
+static int get2Bytes(FILE* fid, unsigned* result); /* forward */
 static int get4Bytes(FILE* fid, unsigned* result); /* forward */
 static int checkAtom(FILE* fid, unsigned fourccToCheck, unsigned* numRemainingBytesToSkip); /* forward */
 static void doRepairType1(FILE* inputFID, FILE* outputFID, unsigned ftypSize); /* forward */
@@ -218,7 +220,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2021-12-02";
+static char const* versionStr = "2022-01-13";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -550,6 +552,16 @@ static int get1Byte(FILE* fid, unsigned char* result) {
   if (feof(fid) || ferror(fid)) return 0;
 
   *result = (unsigned char)fgetcResult;
+  return 1;
+}
+
+static int get2Bytes(FILE* fid, unsigned* result) {
+  unsigned char c1, c2;
+
+  if (!get1Byte(fid, &c1)) return 0;
+  if (!get1Byte(fid, &c2)) return 0;
+
+  *result = (c1<<8)|c2;
   return 1;
 }
 
@@ -1124,16 +1136,26 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	*/
 	if (fseek(inputFID, 0x200-4, SEEK_CUR) != 0) break;
 	continue;
-      } else if (nalSize == 0x00f83030) {
-	/* This 4-byte 'NAL size' is really the start of a 0xFA or 0x1FA-byte block from
-           a 'metadata' track.
+      } else if (nalSize == 0x00f83030 || nalSize == 0x05c64e6f) {
+	/* This 4-byte 'NAL size' is really the start of a block from a 'metadata' track.
 	   Skip over it:
 	*/
-	if (fseek(inputFID, 0xF7, SEEK_CUR) != 0) break; // skip over initial binary garbage
-	if (fgetc(inputFID) == 0xFE) {
-	  // Assume that printable metadata continues (for a total metadata block size of 0x1FA)
+	unsigned remainingMetadataSize;
+	if (nalSize == 0x00f83030) {
+	  if (fseek(inputFID, 0xF6, SEEK_CUR) != 0) break; /* skip over initial binary stuff */
+
+	  /* The next two bytes are assumed to be a length count for the rest of the metadata: */
+	  if (!get2Bytes(inputFID, &remainingMetadataSize)) return;
+	} else {
+	  /* In this case, there was no initial binary stuff */
+	  remainingMetadataSize = 0x05c6;
+	  if (fseek(inputFID, -2, SEEK_CUR) != 0) break; /* back up to the printable metadata */
+	}
+
+	if (remainingMetadataSize > 0) {
+	  /* Assume that printable metadata continues */
 	  if (++printableMetadataCount == 1) {
-	    // For the first occurrence of this metadata, print it out:
+	    /* For the first occurrence of this metadata, print it out: */
 	    unsigned long savePos = ftell(inputFID);
 	    unsigned char c;
 
@@ -1141,17 +1163,17 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	    do {
 	      c = fgetc(inputFID);
 	      fprintf(stderr, "%c", c);
-	    } while (c != '\n');
+	    } while (c != '\n' && c != 0x00);
 	    fseek(inputFID, savePos, SEEK_SET); /* restore our old position */
 	  }
-	  if (fseek(inputFID, 0xFE, SEEK_CUR) != 0) break;
+	  if (fseek(inputFID, remainingMetadataSize, SEEK_CUR) != 0) break;
 	} else {
-	  // Backup to the next "nalSize" position (for a total metadata block size of 0xFA)
+	  /* Backup to the assumed "nalSize" position */
 	  if (fseek(inputFID, -2, SEEK_CUR) != 0) break;
 	}
 	continue;
       } else if (nalSize == 0x00fe462f) {
-	/* This 4-byte 'NAL size' is really the start of a 0x100 block from a 'metadata' track.
+	/* This 4-byte 'NAL size' is really the start of a 0x100-byte block from a 'metadata' track.
 	   Skip over it:
 	*/
 	if (++printableMetadataCount == 1) {

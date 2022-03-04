@@ -20,7 +20,11 @@ install:
 	/usr/bin/install -s -m 0755 djifix $(prefix)/bin
 
 update:
-	curl -s $(url) > djifix.c
+	curl -s $(url) > tmp.txt
+	@if [ -s tmp.txt ]; then \
+    cp tmp.txt djifix.c; \
+	fi
+	@rm tmp.txt
 
 commit:
 	git commit -a -m "Version $(version)"

@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2022-01-13
+    Version 2022-03-28
 
     Copyright (c) 2014-2022 Live Networks, Inc.  All rights reserved.
 
@@ -138,6 +138,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2021-11-08: We now support an additional video format - H.264 720p24 (type 5)
     - 2021-12-02: We now handle 'isom' in addition to 'ftyp' at/near the start of the file.
     - 2022-01-13: We now handle a more general metadata block format (seen in the Mavic Mini SE)
+    - 2022-03-28: Made the parsing/skipping of metadata blocks more robust.  Sometimes, the
+                  'tail end' of the metadata blocks is non-printable-ASCII, which means that it
+		  really doesn't exist.
 */
 
 #include <stdio.h>
@@ -220,7 +223,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2022-01-13";
+static char const* versionStr = "2022-03-28";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1119,6 +1122,8 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
   doRepairType3or5Common(inputFID, outputFID);
 }
 
+static int metadataIsPrintable = 1;
+
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
   /* Repeatedly:
      1/ Read a 4-byte NAL unit size.
@@ -1126,30 +1131,51 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
      3/ Read 'NAL unit size' bytes, and write them to the output file.
   */
   {
-    unsigned nalSize;
+    unsigned nalSize, next4Bytes;
 
     while (!feof(inputFID)) {
       if (!get4Bytes(inputFID, &nalSize)) return;
+      if (!get4Bytes(inputFID, &next4Bytes)) return;
+      fseek(inputFID, -4, SEEK_CUR); // seek back over "next4Bytes"
+
       if ((nalSize&0xFFFF0000) == 0x01FE0000) {
 	/* This 4-byte 'NAL size' is really the start of a 0x200-byte block of 'track 2' data.
 	   Skip over it:
 	*/
 	if (fseek(inputFID, 0x200-4, SEEK_CUR) != 0) break;
 	continue;
-      } else if (nalSize == 0x00f83030 || nalSize == 0x05c64e6f) {
+      } else if (nalSize == 0x05c64e6f ||
+		 ( ((nalSize&0xFFFF0000) == 0x00f80000) && (next4Bytes == 0x20303020) )) { 
 	/* This 4-byte 'NAL size' is really the start of a block from a 'metadata' track.
 	   Skip over it:
 	*/
 	unsigned remainingMetadataSize;
-	if (nalSize == 0x00f83030) {
-	  if (fseek(inputFID, 0xF6, SEEK_CUR) != 0) break; /* skip over initial binary stuff */
-
-	  /* The next two bytes are assumed to be a length count for the rest of the metadata: */
-	  if (!get2Bytes(inputFID, &remainingMetadataSize)) return;
-	} else {
-	  /* In this case, there was no initial binary stuff */
+	if (nalSize == 0x05c64e6f) {
+	  /* In this case, there is no initial binary stuff */
 	  remainingMetadataSize = 0x05c6;
 	  if (fseek(inputFID, -2, SEEK_CUR) != 0) break; /* back up to the printable metadata */
+	} else {
+	  if (fseek(inputFID, 0xF6, SEEK_CUR) != 0) break; /* skip over initial binary stuff */
+
+	  /* The next two bytes might be a length count for the rest of the metadata: */
+	  if (!get2Bytes(inputFID, &remainingMetadataSize)) return;
+	}
+
+	// Check whether the first 4 bytes of this 'remaining data' really is printable ASCII.
+	// If it's not, then the 'two-byte count' was really the start of the next "nalSize":
+	if (remainingMetadataSize >= 4 && metadataIsPrintable) {
+	  if (!get4Bytes(inputFID, &next4Bytes)) return;
+	  fseek(inputFID, -4, SEEK_CUR); // seek back over "next4Bytes" 
+	  
+	  if (((next4Bytes>>24)&0xFF) < 0x20 || ((next4Bytes>>24)&0xFF) > 0x7E ||
+	      ((next4Bytes>>16)&0xFF) < 0x20 || ((next4Bytes>>16)&0xFF) > 0x7E ||
+	      ((next4Bytes>>8)&0xFF) < 0x20 || ((next4Bytes>>8)&0xFF) > 0x7E ||
+	      (next4Bytes&0xFF) < 0x20 || (next4Bytes&0xFF) > 0x7E) {
+	    // Some of these are non-printable => assume that it's not printable ASCII:
+	    remainingMetadataSize = 0;
+	  }
+	} else {
+	  remainingMetadataSize = 0;
 	}
 
 	if (remainingMetadataSize > 0) {
@@ -1170,6 +1196,7 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	} else {
 	  /* Backup to the assumed "nalSize" position */
 	  if (fseek(inputFID, -2, SEEK_CUR) != 0) break;
+	  metadataIsPrintable = 0; // assumed from now on
 	}
 	continue;
       } else if (nalSize == 0x00fe462f) {

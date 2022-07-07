@@ -143,6 +143,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 		  really doesn't exist.
     - 2022-04-17: Replaced the SPS data for (type 3) H.264 1530p, 48 fps so that it conforms
                   to video produced by newer DJI drones.
+    - 2022-07-04: Fixed a bug in the allocation of the name for the output filename.
 */
 
 #include <stdio.h>
@@ -225,7 +226,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2022-04-17";
+static char const* versionStr = "2022-07-04";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -506,7 +507,7 @@ int main(int argc, char** argv) {
       *dotPtr = '\0';
       
       suffixLen = repairType == 1 ? 3/*mp4*/ : 4/*h264*/;
-      outputFileNameSize = (dotPtr - inputFileName) + 1/*dot*/ + suffixLen + 1/*trailing '\0'*/;
+      outputFileNameSize = (dotPtr - inputFileName) + strlen(repairedFilenameStr) + 1/*dot*/ + suffixLen + 1/*trailing '\0'*/;
       outputFileName = malloc(outputFileNameSize);
       sprintf(outputFileName, "%s%s.%s", inputFileName, repairedFilenameStr,
 	      repairType == 1 ? "mp4" : "h264");

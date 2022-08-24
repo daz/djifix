@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2022-04-17
+    Version 2022-08-16
 
     Copyright (c) 2014-2022 Live Networks, Inc.  All rights reserved.
 
@@ -144,6 +144,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2022-04-17: Replaced the SPS data for (type 3) H.264 1530p, 48 fps so that it conforms
                   to video produced by newer DJI drones.
     - 2022-07-04: Fixed a bug in the allocation of the name for the output filename.
+    - 2022-08-16: Improved the checking for video in 'type 4' repairs
 */
 
 #include <stdio.h>
@@ -190,19 +191,21 @@ static int checkForVideoType4(unsigned first4Bytes, unsigned next4Bytes) {
   nextNextByte = next4Bytes>>16;
   switch (nextByte) {
     case 0x00: return nextNextByte == 0x01;
-    case 0x01: return (nextNextByte >= 0x1e && nextNextByte < 0x40) || nextNextByte >= 0xF0;
+//    case 0x01: return (nextNextByte >= 0x1e && nextNextByte < 0x40) || nextNextByte >= 0xF0;
+    case 0x01: return nextNextByte == 0xFD;
     case 0x02: return nextNextByte == 0x01;
     case 0x26: return nextNextByte == 0x01;
     case 0x28: return nextNextByte == 0x01;
     case 0x40: return nextNextByte == 0x01;
-    case 0x41: return nextNextByte >= 0xE0;
+    case 0x41: return (nextNextByte >= 0xE0 && nextNextByte <= 0xFC);
     case 0x42: return nextNextByte == 0x01;
     case 0x44: return nextNextByte == 0x01;
-    case 0x61: return nextNextByte >= 0xE0;
-    case 0x65: return nextNextByte >= 0xB0;
-      //    case 0x67: return nextNextByte >= 0x60; // SPS needs to be correct, so ignore this
-      //    case 0x68: return nextNextByte >= 0xE0; // PPS needs to be correct, so ignore this
-    case 0x6D: return nextNextByte >= 0x60;
+//    case 0x61: return nextNextByte >= 0xE0;
+//    case 0x65: return nextNextByte >= 0xB0;
+    case 0x65: return nextNextByte == 0xB8;
+//    case 0x67: return nextNextByte >= 0x60; // SPS needs to be correct, so ignore this
+//    case 0x68: return nextNextByte >= 0xE0; // PPS needs to be correct, so ignore this
+//    case 0x6D: return nextNextByte >= 0x60;
     default: return 0;
   }
 }
@@ -226,12 +229,14 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2022-07-04";
+static char const* versionStr = "2022-08-16";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
 
-//unsigned codeCount[65536];//#####@@@@@
+#ifdef CODE_COUNT
+unsigned codeCount[65536];
+#endif
 int main(int argc, char** argv) {
   char* inputFileName;
   char* outputFileName;
@@ -537,7 +542,9 @@ int main(int argc, char** argv) {
     fclose(outputFID);
     fprintf(stderr, "\nRepaired file is \"%s\"\n", outputFileName);
     free(outputFileName);
-    //    for (unsigned i = 0; i < 65536; ++i) if (codeCount[i] > 0) fprintf(stderr, "0x%04x: %d\n", i, codeCount[i]);//#####@@@@@
+#ifdef CODE_COUNT
+    for (unsigned i = 0; i < 65536; ++i) if (codeCount[i] > 0) fprintf(stderr, "0x%04x: %d\n", i, codeCount[i]);
+#endif
 
     if (repairType > 1) {
       fprintf(stderr, "This file can be played by the VLC media player (available at <http://www.videolan.org/vlc/>), or by the IINA media player (for MacOS; available at <https://lhc70000.github.io/iina/>).\n");
@@ -1047,9 +1054,15 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
       filePosition = ftell(inputFID)-4;
       fprintf(stderr, "...resuming at file position 0x%08lx (%lu MBytes)).  Continuing to repair the file (please wait)...", filePosition, filePosition/1000000);
     }
-    //    unsigned next4Bytes; if (!get4Bytes(inputFID, &next4Bytes)) return; fseek(inputFID, -4, SEEK_CUR);//#####@@@@@
-    //    ++codeCount[next4Bytes>>16];//#####@@@@@
-    //    fprintf(stderr, "#####@@@@@ nalSize 0x%08x, next4Bytes 0x%08x\n", nalSize, next4Bytes);
+#ifdef CODE_COUNT
+    else {
+      unsigned next4Bytes;
+      if (!get4Bytes(inputFID, &next4Bytes)) return;
+      fseek(inputFID, -4, SEEK_CUR);
+      ++codeCount[next4Bytes>>16];
+      //fprintf(stderr, "#####@@@@@ nalSize 0x%08x, next4Bytes 0x%08x\n", nalSize, next4Bytes);
+    }
+#endif
 
     putStartCode(outputFID);
     while (nalSize-- > 0) {

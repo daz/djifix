@@ -15,9 +15,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2022-09-05
+    Version 2023-01-14
 
-    Copyright (c) 2014-2022 Live Networks, Inc.  All rights reserved.
+    Copyright (c) 2014-2023 Live Networks, Inc.  All rights reserved.
 
     Version history:
     - 2014-09-01: Initial version
@@ -146,6 +146,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2022-07-04: Fixed a bug in the allocation of the name for the output filename.
     - 2022-08-16: Improved the checking for video in 'type 4' repairs
     - 2022-09-05: Added a new format for 'type 5': 1080p30 (Mavic Air)
+    - 2023-01-14: Added a new format for 'type 5': 1080p25 (Mavic Air)
 */
 
 #include <stdio.h>
@@ -230,7 +231,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2022-09-05";
+static char const* versionStr = "2023-01-14";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -249,7 +250,7 @@ int main(int argc, char** argv) {
   unsigned repairType2Second4Bytes; /* used only for 'repair type 2' files */
 
   do {
-    fprintf(stderr, "%s, version %s; Copyright (c) 2014-2021 Live Networks, Inc. All rights reserved.\n", argv[0], versionStr);
+    fprintf(stderr, "%s, version %s; Copyright (c) 2014-2023 Live Networks, Inc. All rights reserved.\n", argv[0], versionStr);
     fprintf(stderr, "The latest version of this software is available at http://djifix.live555.com/\n\n");
 
     if (argc != 2) {
@@ -1076,6 +1077,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
 #define type5_H264_SPS_2160x3840p24_DJIMini2 type3_H264_SPS_2160x3840p24_DJIMini2 /* same */
 #define type5_H264_SPS_1080p48_DJIMini2 type3_H264_SPS_1080p48_DJIMini2 /* same */
 static unsigned char type5_H264_SPS_1080p30_MavicAir[] = { 0x67, 0x64, 0x00, 0x29, 0xac, 0x4d, 0x00, 0xf0, 0x04, 0x4f, 0xca, 0x80, 0xfe };
+static unsigned char type5_H264_SPS_1080p25_MavicAir[] = { 0x67, 0x64, 0x00, 0x32, 0xac, 0x4d, 0x00, 0xf0, 0x04, 0x4f, 0xca, 0x80, 0xfe };
 static unsigned char type5_H264_SPS_720p24[] = { 0x67, 0x42, 0x80, 0x1f, 0xda, 0x01, 0x40, 0x16, 0xe9, 0x48, 0x28, 0x30, 0x30, 0x36, 0x85, 0x09, 0xa8, 0xfe };
 
 #define type5_H264_PPS_DJIMini2 type3_H264_PPS_MavicMini /* same */
@@ -1105,12 +1107,13 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type 1, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type 2, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type 3, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type 4, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type 4, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type 5, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
-      if ((formatCode >= '0' && formatCode <= '4')) {
+      if ((formatCode >= '0' && formatCode <= '5')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -1122,7 +1125,8 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       case '1': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
       case '2': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
       case '3': { sps = type5_H264_SPS_1080p30_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
-      case '4': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
+      case '4': { sps = type5_H264_SPS_1080p25_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
+      case '5': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
       default: { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; } /* shouldn't happen */
     };
 

@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2023-04-19
+    Version 2023-05-05
 
     Copyright (c) 2014-2023 Live Networks, Inc.  All rights reserved.
 
@@ -145,9 +145,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   to video produced by newer DJI drones.
     - 2022-07-04: Fixed a bug in the allocation of the name for the output filename.
     - 2022-08-16: Improved the checking for video in 'type 4' repairs
-    - 2022-09-05: Added a new format for 'type 5': 1080p30 (Mavic Air)
-    - 2023-01-14: Added a new format for 'type 5': 1080p25 (Mavic Air)
+    - 2022-09-05: Added a new format for 'type 5': H.264 1080p30 (Mavic Air)
+    - 2023-01-14: Added a new format for 'type 5': H.264 1080p25 (Mavic Air)
     - 2023-04-19: Updated the format for 1080p30 'type 2' for (presumably) more modern devices
+    - 2023-05-05: We can now identify and skip over some more types of Osmo audio data.
+                  Added a new format for 'type 5': H.264 2160(x3840)p25.
 */
 
 #include <stdio.h>
@@ -232,7 +234,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2023-04-19";
+static char const* versionStr = "2023-05-05";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -833,6 +835,7 @@ static void doRepairType2(FILE* inputFID, FILE* outputFID, unsigned second4Bytes
 }
 
 
+static unsigned char type3_H264_SPS_3000p30[] = { 0x27, 0x64, 0x00, 0x34, 0xad, 0x84, 0x61, 0x18, 0x46, 0x11, 0x84, 0x61, 0x18, 0x46, 0x11, 0x34, 0xc8, 0x03, 0xe8, 0x05, 0xe7, 0xe5, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x20, 0x00, 0x1d, 0x4c, 0x1d, 0x0c, 0x00, 0x02, 0xfa, 0xf0, 0x00, 0x00, 0x1c, 0x9c, 0x38, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x0e, 0x4e, 0x1c, 0x2e, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x12, 0xfe };
 static unsigned char type3_H264_SPS_2160x4096p60[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x01, 0x00, 0x01, 0x0f, 0xb0, 0x16, 0xa0, 0x20, 0x20, 0x28, 0x00, 0x00, 0x1f, 0x48, 0x00, 0x0e, 0xa6, 0x07, 0x43, 0x00, 0x00, 0xbe, 0xbc, 0x00, 0x00, 0x0d, 0x69, 0x3a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x1a, 0xd2, 0x74, 0xbb, 0xcb, 0x87, 0xc2, 0x21, 0x14, 0x58, 0xfe };
 static unsigned char type3_H264_SPS_2160x3840p60[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x03, 0xc0, 0x04, 0x3e, 0xc0, 0x5a, 0x80, 0x80, 0x80, 0xa0, 0x00, 0x00, 0x7d, 0x20, 0x00, 0x3a, 0x98, 0x1d, 0x0c, 0x00, 0x07, 0x27, 0x08, 0x00, 0x00, 0x80, 0xbe, 0xf5, 0xde, 0x5c, 0x68, 0x60, 0x00, 0x39, 0x38, 0x40, 0x00, 0x04, 0x05, 0xf7, 0xae, 0xf2, 0xe1, 0xf0, 0x88, 0x45, 0x16, 0xfe };
 static unsigned char type3_H264_SPS_2160x4096p50[] = { 0x27, 0x64, 0x00, 0x34, 0xac, 0x34, 0xc8, 0x01, 0x00, 0x01, 0x0f, 0xb0, 0x16, 0xa0, 0x20, 0x20, 0x28, 0x00, 0x00, 0x1f, 0x40, 0x00, 0x0c, 0x35, 0x07, 0x43, 0x00, 0x00, 0xbe, 0xbc, 0x00, 0x00, 0x0d, 0x69, 0x3a, 0x5d, 0xe5, 0xc6, 0x86, 0x00, 0x01, 0x7d, 0x78, 0x00, 0x00, 0x1a, 0xd2, 0x74, 0xbb, 0xcb, 0x87, 0xc2, 0x21, 0x14, 0x58, 0xfe };
@@ -881,6 +884,7 @@ static unsigned char type3_H264_SPS_480p30[] = { 0x67, 0x64, 0x00, 0x32, 0xac, 0
 
 static unsigned char type3_H264_PPS_default[] = { 0x28, 0xee, 0x38, 0xb0, 0xfe };
 static unsigned char type3_H264_PPS_MavicMini[] = { 0x68, 0xee, 0x38, 0x30, 0xfe };
+static unsigned char type3_H264_PPS_3000p30[] = { 0x28, 0xee, 0x38, 0xe1, 0x18, 0x46, 0x11, 0x84, 0x61, 0x18, 0x46, 0x11, 0x84, 0x70, 0xfe };
 static unsigned char type3_H265_PPS_2160x4096p30[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x00, 0x80, 0x08, 0x00, 0x87, 0x1f, 0xe5, 0xae, 0xed, 0x4d, 0xdd, 0xc9, 0x75, 0x80, 0xb5, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x0f, 0xa0, 0x00, 0x01, 0x86, 0xa0, 0xae, 0x11, 0x08, 0x20, 0xfe };
 static unsigned char type3_H265_PPS_2160x3840p30[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb5, 0x37, 0x77, 0x25, 0xd6, 0x02, 0xd4, 0x04, 0x04, 0x04, 0x10, 0x00, 0x00, 0x3e, 0x90, 0x00, 0x07, 0x53, 0x02, 0xb8, 0x44, 0x20, 0x80, 0xfe };
 static unsigned char type3_H265_PPS_2160x3840p25[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb5, 0x37, 0x77, 0x25, 0xd6, 0x02, 0xd4, 0x04, 0x04, 0x04, 0x10, 0x00, 0x00, 0x3e, 0x80, 0x00, 0x06, 0x1a, 0x82, 0xb8, 0x44, 0x20, 0x80, 0xfe };
@@ -1079,6 +1083,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID) {
 }
 
 #define type5_H264_SPS_2160x3840p30_DJIMini2 type3_H264_SPS_2160x3840p30_DJIMini2 /* same */
+static unsigned char type5_H264_SPS_2160x3840p25[] = { 0x67, 0x64, 0x00, 0x33, 0xac, 0x4d, 0x00, 0x78, 0x00, 0x87, 0xd0, 0x80, 0x00, 0x01, 0xf4, 0x00, 0x00, 0x61, 0xa8, 0x47, 0x8a, 0x15, 0x50, 0xfe };
 #define type5_H264_SPS_2160x3840p24_DJIMini2 type3_H264_SPS_2160x3840p24_DJIMini2 /* same */
 #define type5_H264_SPS_1080p48_DJIMini2 type3_H264_SPS_1080p48_DJIMini2 /* same */
 static unsigned char type5_H264_SPS_1080p30_MavicAir[] = { 0x67, 0x64, 0x00, 0x29, 0xac, 0x4d, 0x00, 0xf0, 0x04, 0x4f, 0xca, 0x80, 0xfe };
@@ -1109,16 +1114,17 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
     while (1) {
       fprintf(stderr, "First, however, we need to know which video format was used.  Enter this now.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type 0, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type 1, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type 2, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type 3, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type 4, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type 5, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type 1, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type 2, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type 3, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type 4, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type 5, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type 6, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"http://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
-      if ((formatCode >= '0' && formatCode <= '5')) {
+      if ((formatCode >= '0' && formatCode <= '6')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -1127,11 +1133,12 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
     fprintf(stderr, "%s", startingToRepair);
     switch (formatCode) {
       case '0': { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case '1': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case '2': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case '3': { sps = type5_H264_SPS_1080p30_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
-      case '4': { sps = type5_H264_SPS_1080p25_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
-      case '5': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
+      case '1': { sps = type5_H264_SPS_2160x3840p25; pps = type5_H264_PPS_MavicAir; break; }
+      case '2': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case '3': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case '4': { sps = type5_H264_SPS_1080p30_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
+      case '5': { sps = type5_H264_SPS_1080p25_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
+      case '6': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
       default: { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; } /* shouldn't happen */
     };
 
@@ -1174,6 +1181,20 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	   Skip over it:
 	*/
 	if (fseek(inputFID, 0x200-4, SEEK_CUR) != 0) break;
+	continue;
+      } else if ((nalSize&0xFFFF0000) == 0x211C0000 ||
+		 (nalSize&0xFFFF0000) == 0x212C0000 ||
+		 (nalSize&0xFFFF0000) == 0x214E0000 ||
+		 (nalSize&0xFFFF0000) == 0x217C0000 ||
+		 (nalSize&0xFFFF0000) == 0x2ECF0000 ||
+		 (nalSize&0xFFFF0000) == 0x38110000 ||
+		 (nalSize&0xFFFF0000) == 0x5D9C0000 ||
+		 (nalSize&0xFFFF0000) == 0x5DBB0000 ||
+		 (nalSize&0xFFFF0000) == 0x80210000) {
+	/* This 4-byte 'NAL size' is really the start of a 0x1F9-byte block of 'track 2' data.
+	   Skip over it:
+	*/
+	if (fseek(inputFID, 0x1F9-4, SEEK_CUR) != 0) break;
 	continue;
       } else if (nalSize == 0x05c64e6f ||
 		 ( ((nalSize&0xFFFF0000) == 0x00f80000) && (next4Bytes == 0x20303020) )) { 

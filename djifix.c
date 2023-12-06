@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2023-06-20
+    Version 2023-11-24
 
     Copyright (c) 2014-2023 Live Networks, Inc.  All rights reserved.
 
@@ -152,6 +152,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
                   Added a new format for 'type 5': H.264 2160(x3840)p25.
     - 2023-06-03: We now support a new 'type 5' format for the DJI 03 Air: H.265 2016p60.
     - 2023-06-20: We now support a new 'type 5' format for the DJI 03 Air: H.265 2160p60.
+    - 2023-11-24: Updated the 'type3or5Common' parsing to handle metadata tracks for DJI Air 3
 */
 
 #include <stdio.h>
@@ -236,7 +237,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2023-06-20";
+static char const* versionStr = "2023-11-24";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1192,12 +1193,20 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
       if (!get4Bytes(inputFID, &nalSize)) return;
       if (!get4Bytes(inputFID, &next4Bytes)) return;
       fseek(inputFID, -4, SEEK_CUR); // seek back over "next4Bytes"
+      //fprintf(stderr, "#####@@@@@ @0x%08lx: nalSize 0x%08x, next4Bytes 0x%08x\n", ftell(inputFID)-4, nalSize, next4Bytes);
 
       if ((nalSize&0xFFFF0000) == 0x01FE0000) {
 	/* This 4-byte 'NAL size' is really the start of a 0x200-byte block of 'track 2' data.
 	   Skip over it:
 	*/
 	if (fseek(inputFID, 0x200-4, SEEK_CUR) != 0) break;
+	continue;
+      } else if ((nalSize&0xFF800000) == 0x12800000) {
+	/* This 4-byte 'NAL size' is really the start of a 0x244*-byte block of 'track 3' data.
+	   Skip over it:
+	*/
+	unsigned assumedBlockSize = 0x2403 + (nalSize>>16)-0x1280;
+	if (fseek(inputFID, assumedBlockSize-4, SEEK_CUR) != 0) break;
 	continue;
       } else if ((nalSize&0xFFFF0000) == 0x211C0000 ||
 		 (nalSize&0xFFFF0000) == 0x212C0000 ||
@@ -1293,11 +1302,17 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	*/
 	if (fseek(inputFID, 0x30+((nalSize&0x00010000)?1:0)-4, SEEK_CUR) != 0) break;
 	continue;
-      } else if ((nalSize&0xFFC00000) == 0x1A800000) {
+      } else if ((nalSize&0xFF800000) == 0x1A800000) {
 	/* This 4-byte 'NAL size' is really the start of a 'track 2' metadata block.
 	   Skip over it:
 	*/
-	if (fseek(inputFID, (nalSize>>16)-0x177d-4, SEEK_CUR) != 0) break;
+	unsigned assumedBlockSize;
+	if ((nalSize&0xFF80FFFF) == 0x1A80020A) { /* special case */
+	  assumedBlockSize = 0x103 + (nalSize>>16)-0x1A80;
+	} else {
+	  assumedBlockSize = (nalSize>>16)-0x177d;
+	}
+	if (fseek(inputFID, assumedBlockSize-4, SEEK_CUR) != 0) break;
 	continue;
       } else if ((nalSize&0xFF800000) == 0x12800000) {
 	/* This 4-byte 'NAL size' is really the start of a 'track 3' metadata block.

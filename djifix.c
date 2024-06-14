@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2024-05-04
+    Version 2024-05-23
 
     Copyright (c) 2014-2024 Live Networks, Inc.  All rights reserved.
 
@@ -156,6 +156,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2024-01-22: We now support a new 'type 5' format: H.265 2160p30
     - 2024-02-29: We now support a new 'type 5' format: H.265 2160p100
     - 2024-05-04: We now support a new 'type 5' format: H.264 720p30
+    - 2024-05-23: Added new special cases for 'type3or5Common' parsing
 */
 
 #include <stdio.h>
@@ -240,7 +241,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2024-05-04";
+static char const* versionStr = "2024-05-23";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1212,7 +1213,7 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
       if (!get4Bytes(inputFID, &nalSize)) return;
       if (!get4Bytes(inputFID, &next4Bytes)) return;
       fseek(inputFID, -4, SEEK_CUR); // seek back over "next4Bytes"
-      //fprintf(stderr, "#####@@@@@ @0x%08lx: nalSize 0x%08x, next4Bytes 0x%08x\n", ftell(inputFID)-4, nalSize, next4Bytes);
+      //      fprintf(stderr, "#####@@@@@ @0x%08lx: nalSize 0x%08x, next4Bytes 0x%08x\n", ftell(inputFID)-4, nalSize, next4Bytes);
 
       if ((nalSize&0xFFFF0000) == 0x01FE0000) {
 	/* This 4-byte 'NAL size' is really the start of a 0x200-byte block of 'track 2' data.
@@ -1227,6 +1228,12 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
 	unsigned assumedBlockSize;
 	if ((nalSize&0x0000FFFF) == 0x00004B0A) { /* special case */
 	  assumedBlockSize = 0x25ba + (nalSize>>16)-0x12B7;
+	} else if ((nalSize&0x0000FFFF) == 0x0000500A) { /* special case */
+	  assumedBlockSize = 0x2881 + (nalSize>>16)-0x12fe;
+	  //	  fprintf(stderr, "\t#####@@@@@1 assumedBlockSize: %x\n", assumedBlockSize);
+	} else if ((nalSize&0x0000FFFF) == 0x0000510A) { /* special case */
+	  assumedBlockSize = 0x2886 + (nalSize>>16)-0x1283;
+	  //	  fprintf(stderr, "\t#####@@@@@2 assumedBlockSize: %x\n", assumedBlockSize);
 	} else {
 	  assumedBlockSize = 0x2403 + (nalSize>>16)-0x1280;
 	}

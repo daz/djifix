@@ -2,7 +2,7 @@
 # Makefile to update and build djifix
 
 prefix=/usr/local
-url="http://djifix.live555.com/djifix.c"
+url="https://djifix.live555.com/djifix.c"
 version=$(shell cat djifix.c | grep "versionStr = " | sed 's/.*"\(.*\)".*/\1/')
 
 all: build

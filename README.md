@@ -1,6 +1,6 @@
 # djifix
 
-Mirror of http://live555.com/drones/DJI-Phantom-2-Vision+-video-fix/
+Mirror of https://djifix.live555.com/
 
 Repair corrupt DJI video files.
 

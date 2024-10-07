@@ -1,0 +1,59 @@
+name: Check for djifix.c updates
+
+on:
+  schedule:
+    # Runs daily at midnight (UTC)
+    - cron: '0 0 * * *'
+
+jobs:
+  update-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Set up Git user information
+    - name: Set up Git user
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+
+    # Run the update command
+    - name: Update djifix.c
+      run: make update
+
+    # Check if djifix.c has changed
+    - name: Check for changes in djifix.c
+      id: changes
+      run: |
+        if git diff --quiet --exit-code djifix.c; then
+          echo "No changes in djifix.c"
+          echo "::set-output name=changes_detected::false"
+        else
+          echo "Changes detected in djifix.c"
+          echo "::set-output name=changes_detected::true"
+        fi
+
+    # Commit changes using 'make commit'
+    - name: Commit changes
+      if: steps.changes.outputs.changes_detected == 'true'
+      run: |
+        branch_name="update-djifix-$(date +'%Y%m%d%H%M%S')"
+        git checkout -b $branch_name
+        make commit
+        commit_message=$(git log -1 --pretty=%B)
+        echo "::set-output name=commit_message::$commit_message"
+        git push origin $branch_name
+
+    # Create a pull request with the same name as the commit message
+    - name: Create pull request
+      if: steps.changes.outputs.changes_detected == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        branch: ${{ github.ref }}
+        base: master
+        title: ${{ steps.commit.outputs.commit_message }}
+        body: |
+          This pull request contains the automated update for `djifix.c` as of $(date).

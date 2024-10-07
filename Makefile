@@ -30,7 +30,11 @@ update:
 	fi
 
 commit:
-	git commit -a -m "Version $(version)"
+	@if git diff --quiet --exit-code djifix.c; then \
+		echo "No changes to commit in djifix.c."; \
+	else \
+		git commit djifix.c -m "Version $(version)"; \
+	fi
 
 release:
 	git push origin master

@@ -30,30 +30,30 @@ jobs:
       run: |
         if git diff --quiet --exit-code djifix.c; then
           echo "No changes in djifix.c"
-          echo "::set-output name=changes_detected::false"
+          echo "changes_detected=false" >> $GITHUB_ENV
         else
           echo "Changes detected in djifix.c"
-          echo "::set-output name=changes_detected::true"
+          echo "changes_detected=true" >> $GITHUB_ENV
         fi
 
     # Commit changes using 'make commit'
     - name: Commit changes
-      if: steps.changes.outputs.changes_detected == 'true'
+      if: ${{ env.changes_detected }}
       run: |
         branch_name="update-djifix-$(date +'%Y%m%d%H%M%S')"
         git checkout -b $branch_name
         make commit
         commit_message=$(git log -1 --pretty=%B)
-        echo "::set-output name=commit_message::$commit_message"
+        echo "commit_message=$commit_message" >> $GITHUB_ENV
         git push origin $branch_name
 
     # Create a pull request with the same name as the commit message
     - name: Create pull request
-      if: steps.changes.outputs.changes_detected == 'true'
+      if: ${{ env.changes_detected }}
       uses: peter-evans/create-pull-request@v5
       with:
         branch: ${{ github.ref }}
         base: master
-        title: ${{ steps.commit.outputs.commit_message }}
+        title: ${{ env.commit_message }}
         body: |
           This pull request contains the automated update for `djifix.c` as of $(date).

@@ -4,56 +4,58 @@ on:
   schedule:
     # Runs daily at midnight (UTC)
     - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   update-check:
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout the repository
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    # Set up Git user information
     - name: Set up Git user
       run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-    # Run the update command
     - name: Update djifix.c
       run: make update
 
-    # Check if djifix.c has changed
     - name: Check for changes in djifix.c
       id: changes
       run: |
         if git diff --quiet --exit-code djifix.c; then
           echo "No changes in djifix.c"
-          echo "changes_detected=false" >> $GITHUB_ENV
+          echo "changed=false" >> "$GITHUB_OUTPUT"
         else
           echo "Changes detected in djifix.c"
-          echo "changes_detected=true" >> $GITHUB_ENV
+          echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
-    # Commit changes using 'make commit'
-    - name: Commit changes
-      if: ${{ env.changes_detected }}
+    - name: Get version
+      id: version
+      if: steps.changes.outputs.changed == 'true'
       run: |
-        branch_name="update-djifix-$(date +'%Y%m%d%H%M%S')"
-        git checkout -b $branch_name
-        make commit
-        commit_message=$(git log -1 --pretty=%B)
-        echo "commit_message=$commit_message" >> $GITHUB_ENV
-        git push origin $branch_name
+        echo "version=$(make version)" >> "$GITHUB_OUTPUT"
 
-    # Create a pull request with the same name as the commit message
     - name: Create pull request
-      if: ${{ env.changes_detected }}
-      uses: peter-evans/create-pull-request@v5
+      if: steps.changes.outputs.changed == 'true'
+      uses: peter-evans/create-pull-request@v6
       with:
-        branch: ${{ github.ref }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         base: master
-        title: ${{ env.commit_message }}
+        branch: update-djifix
+        delete-branch: true
+        commit-message: "Version ${{ steps.version.outputs.version }}"
+        title: "Version ${{ steps.version.outputs.version }}"
         body: |
-          This pull request contains the automated update for `djifix.c` as of $(date).
+          Automated update for `djifix.c`.
+
+          Source version: `${{ steps.version.outputs.version }}`
+          Trigger: `${{ github.event_name }}`
+          Run: `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`

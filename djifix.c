@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2026-06-29
+    Version 2026-07-03
     
     Copyright (c) 2014-2026 Live Networks, Inc.  All rights reserved.
 
@@ -193,6 +193,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2026-04-04: Updated the PPS, SPS, and VPS for H.265 (3840x)2160p60
     - 2026-05-23: Updated the SPS and VPS for H.265 (3840x)2160p25
     - 2026-06-29: Updated the SPS, PPS, and VPS for H.265 (3840x)2160p30
+    - 2026-07-03: Updated the PPS for H.164 720p24
 */
 
 #include <stdio.h>
@@ -277,7 +278,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2026-06-29";
+static char const* versionStr = "2026-07-03";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1198,7 +1199,8 @@ static unsigned char type5_H264_SPS_1080p60[] = { 0x67, 0x64, 0x00, 0x34, 0xac, 
 static unsigned char type5_H265_PPS_1080p50[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe7, 0xed, 0x96, 0xbb, 0xb7, 0x26, 0xbb, 0x13, 0x50, 0x10, 0x10, 0x10, 0x40, 0x00, 0x00, 0x19, 0x00, 0x00, 0x04, 0xe2, 0x02, 0xfe };
 static unsigned char type5_H265_PPS_1080p25[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x03, 0xc0, 0x80, 0x10, 0xe7, 0xed, 0x96, 0xbb, 0xb7, 0x26, 0xbb, 0x13, 0x50, 0x10, 0x10, 0x10, 0x40, 0x00, 0x00, 0x19, 0x00, 0x00, 0x03, 0x02, 0x71, 0x02, 0xfe };
 static unsigned char type5_H264_PPS_720p30[] = { 0x68, 0xee, 0x06, 0xf2, 0xc0, 0xfe };
-static unsigned char type5_H264_PPS_720p24[] = { 0x68, 0xce, 0x06, 0xf2, 0xfe };
+//static unsigned char type5_H264_PPS_720p24[] = { 0x68, 0xce, 0x06, 0xf2, 0xfe };
+static unsigned char type5_H264_PPS_720p24[] = { 0x68, 0xce, 0x06, 0xe2, 0xfe };
 
 static unsigned char type5_H265_VPS_default[] = { 0x44, 0x01, 0xc0, 0x73, 0xc2, 0x5e, 0x24, 0xfe };
 static unsigned char type5_H265_VPS_3078p24[] = { 0x44, 0x01, 0xc1, 0xad, 0xf0, 0x92, 0x01, 0x54, 0x18, 0x53, 0x64, 0xfe };
@@ -1347,7 +1349,27 @@ static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID) {
       fseek(inputFID, -4, SEEK_CUR); // seek back over "next4Bytes"
       //      fprintf(stderr, "#####@@@@@B @0x%08lx: nalSize 0x%08x, next4Bytes 0x%08x\n", ftell(inputFID)-4, nalSize, next4Bytes);
 
-      if ((nalSize&0xFFFF0000) == 0x01FE0000) {
+      if ((nalSize&0xFF801F00) == 0x01001400 ||
+	  (nalSize&0xFF801F00) == 0x01001600 ||
+	  (nalSize&0xFF801F00) == 0x01001700 ||
+	  nalSize == 0x06a782fa) {
+	/* This 4-byte 'NAL size' is really the start of a 'track 2' audio data block.
+	   (Unfortunately we can't easily deduce the block size, but we know that
+	   the following block (after the NAL size) will start with 0x41e, 0x41f or 0x65b8
+	   Skip over it:
+	*/
+	while (((next4Bytes&0xFFE00000) != 0x41E00000 &&
+		(next4Bytes&0xFFFF0000) != 0x65B80000)
+	       || nalSize > 0x000FFFFF) {
+	  unsigned char nextByte;
+
+	  if (!get1Byte(inputFID, &nextByte)) return;
+	  nalSize  = (nalSize<<8)|(next4Bytes>>24);
+	  next4Bytes = (next4Bytes<<8)|nextByte;
+	}
+	if (fseek(inputFID, -8, SEEK_CUR) != 0) break; // seek back to the NAL size
+	continue;
+      } else if ((nalSize&0xFFFF0000) == 0x01FE0000) {
 	/* This 4-byte 'NAL size' is really the start of a 0x200-byte block of 'track 2' data.
 	   Skip over it:
 	*/

@@ -1,0 +1,109 @@
+name: Release binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset_name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset_name: djifix-linux-x86_64
+            os: ubuntu-latest
+            archive_name: djifix-linux-x86_64.tar.gz
+            package_type: tar
+
+          - asset_name: djifix-linux-arm64
+            os: ubuntu-24.04-arm
+            archive_name: djifix-linux-arm64.tar.gz
+            package_type: tar
+
+          - asset_name: djifix-macos-x86_64
+            os: macos-15-intel
+            archive_name: djifix-macos-x86_64.tar.gz
+            package_type: tar
+
+          - asset_name: djifix-macos-arm64
+            os: macos-latest
+            archive_name: djifix-macos-arm64.tar.gz
+            package_type: tar
+
+          - asset_name: djifix-windows-x86_64
+            os: windows-latest
+            archive_name: djifix-windows-x86_64.zip
+            package_type: zip
+            msvc_arch: x64
+
+          - asset_name: djifix-windows-arm64
+            os: windows-11-arm
+            archive_name: djifix-windows-arm64.zip
+            package_type: zip
+            msvc_arch: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Build Unix binary
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: Build Windows binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cl /O2 /Fe:djifix.exe djifix.c
+
+      - name: Package Unix binary
+        if: matrix.package_type == 'tar'
+        shell: bash
+        run: |
+          mkdir "${{ matrix.asset_name }}"
+          cp djifix README.md LICENSE "${{ matrix.asset_name }}/"
+          tar -czf "${{ matrix.archive_name }}" "${{ matrix.asset_name }}"
+
+      - name: Package Windows binary
+        if: matrix.package_type == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "${{ matrix.asset_name }}"
+          Copy-Item -Path djifix.exe,README.md,LICENSE -Destination "${{ matrix.asset_name }}"
+          Compress-Archive -Path "${{ matrix.asset_name }}" -DestinationPath "${{ matrix.archive_name }}"
+
+      - name: Upload binary archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.archive_name }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download binary archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

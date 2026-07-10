@@ -568,7 +568,7 @@ int main(int argc, char** argv) {
       suffixLen = repairType == 1 ? 3/*mp4*/ : 4/*h264*/;
       outputFileNameSize = (dotPtr - inputFileName) + strlen(repairedFilenameStr) + 1/*dot*/ + suffixLen + 1/*trailing '\0'*/;
       outputFileName = malloc(outputFileNameSize);
-      sprintf(outputFileName, "%s%s.%s", inputFileName, repairedFilenameStr,
+      snprintf(outputFileName, outputFileNameSize, "%s%s.%s", inputFileName, repairedFilenameStr,
 	      repairType == 1 ? "mp4" : "h264");
 
       outputFID = fopen(outputFileName, "wb");

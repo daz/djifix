@@ -15,7 +15,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
     A C program to repair corrupted video files that can sometimes be produced by
     DJI quadcopters.
-    Version 2026-07-05
+    Version 2026-07-20
     
     Copyright (c) 2014-2026 Live Networks, Inc.  All rights reserved.
 
@@ -195,6 +195,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     - 2026-06-29: Updated the SPS, PPS, and VPS for H.265 (3840x)2160p30
     - 2026-07-03: Updated the PPS for H.164 720p24
     - 2026-07-05: We now support a new 'type 5' format: H.264 2700p24
+    - 2026-07-20: It seems that two different SPS,VPS variants are used for
+                  H.265 (3840x)2160p30, so we now support both
 */
 
 #include <stdio.h>
@@ -279,7 +281,7 @@ static void doRepairType4(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType5(FILE* inputFID, FILE* outputFID); /* forward */
 static void doRepairType3or5Common(FILE* inputFID, FILE* outputFID); /* forward */
 
-static char const* versionStr = "2026-07-05";
+static char const* versionStr = "2026-07-20";
 static char const* repairedFilenameStr = "-repaired";
 static char const* startingToRepair = "Repairing the file (please wait)...";
 static char const* cantRepair = "  We cannot repair this file!";
@@ -1180,7 +1182,8 @@ static unsigned char type5_H265_PPS_2160p50[] = { 0x42, 0x01, 0x01, 0x01, 0x60, 
     /* Note: Because 0xfe appears in this PPS, we indicate this by repeating it. */
 //static unsigned char type5_H265_PPS_2160p30[] = { 0x42, 0x01, 0x01, 0x01, 0x40, 0x00, 0x00, 0x03, 0x00, 0x80, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0xa2, 0xee, 0xc9, 0x57, 0x7a, 0x25, 0xd5, 0x81, 0x00, 0x00, 0x03, 0x03, 0xe8, 0x00, 0x00, 0x71, 0x48, 0xc4, 0xfe };
 //static unsigned char type5_H265_PPS_2160p30[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7e, 0xd9, 0x6b, 0xbb, 0x72, 0x6b, 0xb1, 0x35, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x03, 0x01, 0x90, 0x00, 0x00, 0x2e, 0xd4, 0x20, 0xfe };
-static unsigned char type5_H265_PPS_2160p30[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb7, 0x26, 0xb9, 0x75, 0x35, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x03, 0x01, 0x90, 0x00, 0x00, 0x2e, 0xd4, 0x20, 0xfe };
+static unsigned char type5_H265_PPS_2160p30_variant1[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb7, 0x26, 0xb9, 0x75, 0x35, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x03, 0x01, 0x90, 0x00, 0x00, 0x2e, 0xd4, 0x20, 0xfe };
+static unsigned char type5_H265_PPS_2160p30_variant2[] = { 0x42, 0x01, 0x01, 0x21, 0x60, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7f, 0x96, 0xbb, 0xb7, 0x26, 0xbb, 0x13, 0x50, 0x10, 0x10, 0x10, 0x40, 0x00, 0x00, 0x19, 0x00, 0x00, 0x03, 0x02, 0xed, 0x42, 0xfe };
 //static unsigned char type5_H265_PPS_2160p25[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7e, 0xd9, 0x6b, 0xbb, 0x72, 0x6b, 0xb1, 0x35, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x03, 0x01, 0x90, 0x00, 0x00, 0x27, 0x10, 0x20, 0xfe };
 //static unsigned char type5_H265_PPS_2160p25[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7e, 0xd9, 0x6b, 0xbb, 0x72, 0x6b, 0x97, 0x53, 0x50, 0x10, 0x10, 0x10, 0x40, 0x00, 0x00, 0x19, 0x00, 0x00, 0x03, 0x02, 0x71, 0x02, 0xfe };
 static unsigned char type5_H265_PPS_2160p25[] = { 0x42, 0x01, 0x01, 0x22, 0x20, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x96, 0xa0, 0x01, 0xe0, 0x20, 0x02, 0x1c, 0x7e, 0xd9, 0x6b, 0xbb, 0x72, 0x6b, 0xb1, 0x35, 0x01, 0x01, 0x01, 0x04, 0x00, 0x00, 0x03, 0x01, 0x90, 0x00, 0x00, 0x27, 0x10, 0x20, 0xfe };
@@ -1215,8 +1218,8 @@ static unsigned char type5_H265_VPS_2160p60_variant2[] = { 0x44, 0x01, 0xc0, 0x7
 static unsigned char type5_H265_VPS_2160p60_variant3[] = { 0x44, 0x01, 0xc1, 0x73, 0x12, 0x24, 0x08, 0x90, 0xfe };
 static unsigned char type5_H265_VPS_2160p50[] = { 0x44, 0x01, 0xc0, 0xe3, 0x4b, 0xc0, 0xc1, 0x45, 0x24, 0xfe };
 //static unsigned char type5_H265_VPS_2160p30[] = { 0x44, 0x01, 0xc0, 0x73, 0x12, 0x24, 0x25, 0xe2, 0x40, 0xfe };
-static unsigned char type5_H265_VPS_2160p30[] = { 0x44, 0x01, 0xc1, 0x73, 0x12, 0x24, 0x08, 0x90, 0xfe };
-//static unsigned char type5_H265_VPS_2160p25[] = { 0x44, 0x01, 0xc1, 0x73, 0x12, 0x24, 0x08, 0x90, 0xfe };
+static unsigned char type5_H265_VPS_2160p30_variant1[] = { 0x44, 0x01, 0xc1, 0x73, 0x12, 0x24, 0x08, 0x90, 0xfe };
+static unsigned char type5_H265_VPS_2160p30_variant2[] = { 0x44, 0x01, 0xc0, 0x73, 0xc2, 0x5e, 0x24, 0xfe };
 static unsigned char type5_H265_VPS_2160p25[] = { 0x44, 0x01, 0xc0, 0x73, 0x12, 0x24, 0x25, 0xe2, 0x40, 0xfe };
 static unsigned char type5_H265_VPS_1080p60[] = { 0x44, 0x01, 0xc0, 0x73, 0x12, 0x24, 0x08, 0x90, 0xfe };
 #define type5_H265_VPS_1080p50 type5_H265_VPS_1080p60 /*same*/
@@ -1252,33 +1255,34 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 60fps (variant 2): Type 7, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 60fps: Type 8, then the \"Return\" key.\n");
       fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 50fps: Type 9, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 30fps: Type A, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type B, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 25fps: Type C, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type D, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 24fps: Type E, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type F, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2016p, 100fps: Type G, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 2016p, 60fps: Type H, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 2016p, 60fps: Type I, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1520p, 60fps: Type J, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 60fps: Type K, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps: Type L, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 50fps: Type M, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type N, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type O, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type P, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type Q, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 30fps (variant 1): Type A, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 30fps (variant 2): Type B, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 30fps: Type C, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 25fps: Type D, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 25fps: Type E, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2160(x3840)p(UHD-1), 24fps: Type F, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2160(x3840)p(UHD-1), 24fps: Type G, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2016p, 100fps: Type H, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 2016p, 60fps: Type I, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 2016p, 60fps: Type J, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1520p, 60fps: Type K, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 60fps: Type L, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 60fps: Type M, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 50fps: Type N, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 48fps: Type O, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 30fps: Type P, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.265, 1080p, 25fps: Type Q, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 1080p, 25fps: Type R, then the \"Return\" key.\n");
 
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type R, then the \"Return\" key.\n");
-      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type S, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 30fps: Type S, then the \"Return\" key.\n");
+      fprintf(stderr, "\tIf the video format was H.264, 720p, 24fps: Type T, then the \"Return\" key.\n");
       fprintf(stderr, " If the resulting file is unplayable by VLC or IINA, then you may have guessed the wrong format;\n");
       fprintf(stderr, " try again with another format.)\n");
       fprintf(stderr, "If you know for sure that your video format was *not* one of the ones listed above, then please read FAQ number 4 at \"https://djifix.live555.com/#faq\", and we'll try to update the software to support your video format.\n");
       do {formatCode = getchar(); } while (formatCode == '\r' && formatCode == '\n');
       if ((formatCode >= '0' && formatCode <= '9') ||
-	  (formatCode >= 'a' && formatCode <= 's') ||
-	  (formatCode >= 'A' && formatCode <= 'S')) {
+	  (formatCode >= 'a' && formatCode <= 't') ||
+	  (formatCode >= 'A' && formatCode <= 'T')) {
 	break;
       }
       fprintf(stderr, "Invalid entry!\n");
@@ -1296,25 +1300,26 @@ static void doRepairType5(FILE* inputFID, FILE* outputFID) {
       case '7': { sps = type5_H265_SPS_2160x3840p60_variant2; pps = type5_H265_PPS_2160p60_variant2; vps = type5_H265_VPS_2160p60_variant2; break; }
       case '8': { sps = type5_H264_SPS_2160x3840p60; pps = type5_H264_PPS_2160x384p60; break; }
       case '9': { sps = type5_H265_SPS_2160x3840p50; pps = type5_H265_PPS_2160p50; vps = type5_H265_VPS_2160p50; break; }
-      case 'a': case 'A': { sps = type5_H265_SPS_2160x3840p30; pps = type5_H265_PPS_2160p30; vps = type5_H265_VPS_2160p30; break; }
-      case 'b': case 'B': { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case 'c': case 'C': { sps = type5_H265_SPS_2160p25; pps = type5_H265_PPS_2160p25; vps = type5_H265_VPS_2160p25; break; }
-      case 'd': case 'D': { sps = type5_H264_SPS_2160x3840p25; pps = type5_H264_PPS_MavicAir; break; }
-      case 'e': case 'E': { sps = type5_H265_SPS_2160p24; pps = type5_H265_PPS_2160p24; vps = type5_H265_VPS_2160p_default; break; }
-      case 'f': case 'F': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case 'g': case 'G': { sps = type5_H265_SPS_2016p100; pps = type5_H265_PPS_2016p100; vps = type5_H265_VPS_default; break; }
-      case 'h': case 'H': { sps = type5_H265_SPS_2016p60; pps = type5_H265_PPS_2016p60; vps = type5_H265_VPS_2160p60_variant3; break; }
-      case 'i': case 'I': { sps = type5_H264_SPS_2016p60; pps = type5_H264_PPS_2016p60; break; }
-      case 'j': case 'J': { sps = type5_H264_SPS_1520p60; pps = type5_H264_PPS_1520p60; break; }
-      case 'k': case 'K': { sps = type5_H265_SPS_1080p60; pps = type5_H265_PPS_1080p60; vps = type5_H265_VPS_1080p60; break; }
-      case 'l': case 'L': { sps = type5_H264_SPS_1080p60; pps = type5_H264_PPS_1080p60; break; }
-      case 'm': case 'M': { sps = type5_H265_SPS_1080p50; pps = type5_H265_PPS_1080p50; vps = type5_H265_VPS_1080p50; break; }
-      case 'n': case 'N': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
-      case 'o': case 'O': { sps = type5_H264_SPS_1080p30_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
-      case 'p': case 'P': { sps = type5_H265_SPS_1080p25; pps = type5_H265_PPS_1080p25; vps = type5_H265_VPS_1080p25; break; }
-      case 'q': case 'Q': { sps = type5_H264_SPS_1080p25_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
-      case 'r': case 'R': { sps = type5_H264_SPS_720p30; pps = type5_H264_PPS_720p30; break; }
-      case 's': case 'S': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
+      case 'a': case 'A': { sps = type5_H265_SPS_2160x3840p30; pps = type5_H265_PPS_2160p30_variant1; vps = type5_H265_VPS_2160p30_variant1; break; }
+      case 'b': case 'B': { sps = type5_H265_SPS_2160x3840p30; pps = type5_H265_PPS_2160p30_variant2; vps = type5_H265_VPS_2160p30_variant2; break; }
+      case 'c': case 'C': { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case 'd': case 'D': { sps = type5_H265_SPS_2160p25; pps = type5_H265_PPS_2160p25; vps = type5_H265_VPS_2160p25; break; }
+      case 'e': case 'E': { sps = type5_H264_SPS_2160x3840p25; pps = type5_H264_PPS_MavicAir; break; }
+      case 'f': case 'F': { sps = type5_H265_SPS_2160p24; pps = type5_H265_PPS_2160p24; vps = type5_H265_VPS_2160p_default; break; }
+      case 'g': case 'G': { sps = type5_H264_SPS_2160x3840p24_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case 'h': case 'H': { sps = type5_H265_SPS_2016p100; pps = type5_H265_PPS_2016p100; vps = type5_H265_VPS_default; break; }
+      case 'i': case 'I': { sps = type5_H265_SPS_2016p60; pps = type5_H265_PPS_2016p60; vps = type5_H265_VPS_2160p60_variant3; break; }
+      case 'j': case 'J': { sps = type5_H264_SPS_2016p60; pps = type5_H264_PPS_2016p60; break; }
+      case 'k': case 'K': { sps = type5_H264_SPS_1520p60; pps = type5_H264_PPS_1520p60; break; }
+      case 'l': case 'L': { sps = type5_H265_SPS_1080p60; pps = type5_H265_PPS_1080p60; vps = type5_H265_VPS_1080p60; break; }
+      case 'm': case 'M': { sps = type5_H264_SPS_1080p60; pps = type5_H264_PPS_1080p60; break; }
+      case 'n': case 'N': { sps = type5_H265_SPS_1080p50; pps = type5_H265_PPS_1080p50; vps = type5_H265_VPS_1080p50; break; }
+      case 'o': case 'O': { sps = type5_H264_SPS_1080p48_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; }
+      case 'p': case 'P': { sps = type5_H264_SPS_1080p30_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
+      case 'q': case 'Q': { sps = type5_H265_SPS_1080p25; pps = type5_H265_PPS_1080p25; vps = type5_H265_VPS_1080p25; break; }
+      case 'r': case 'R': { sps = type5_H264_SPS_1080p25_MavicAir; pps = type5_H264_PPS_MavicAir; break; }
+      case 's': case 'S': { sps = type5_H264_SPS_720p30; pps = type5_H264_PPS_720p30; break; }
+      case 't': case 'T': { sps = type5_H264_SPS_720p24; pps = type5_H264_PPS_720p24; break; }
       default: { sps = type5_H264_SPS_2160x3840p30_DJIMini2; pps = type5_H264_PPS_DJIMini2; break; } /* shouldn't happen */
     };
 
